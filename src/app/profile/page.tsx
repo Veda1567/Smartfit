@@ -60,6 +60,13 @@ export default async function ProfilePage() {
       gamification: true,
       workoutSessions: true,
       meditationLogs: true,
+      mudraProgress: true,
+      wellnessCheckIns: {
+        orderBy: {
+          checkedInAt: "desc",
+        },
+        take: 5,
+      },
       chessStats: true,
       bmiRecords: {
         orderBy: {
@@ -98,6 +105,13 @@ export default async function ProfilePage() {
     (sum, meditation) => sum + meditation.durationMinutes,
     0
   );
+
+  const totalMudras = user.mudraProgress.reduce(
+    (sum, m) => sum + m.practiceCount,
+    0
+  );
+
+  const latestCheckIn = user.wellnessCheckIns[0] || null;
 
   const bmi = profile?.currentBmi;
   const bmiText = bmi ? bmi.toFixed(1) : "—";
@@ -482,6 +496,71 @@ export default async function ProfilePage() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* Mental Wellness & Mindfulness Summary Card */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+              <Brain className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">
+                Mental Wellness &amp; Mindfulness Summary
+              </h3>
+              <p className="text-xs text-slate-400">
+                Self-care records, meditation volume, and mindful hand postures
+              </p>
+            </div>
+          </div>
+
+          <Link href="/wellness">
+            <Button variant="secondary" size="sm" className="text-xs flex items-center gap-1">
+              Open Wellness Studio <ChevronRight className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Latest Daily Check-In
+            </div>
+            <div className="text-sm font-bold text-white">
+              {latestCheckIn ? `Mood: ${latestCheckIn.mood.toUpperCase()}` : "No check-in yet"}
+            </div>
+            <p className="text-xs text-slate-400">
+              {latestCheckIn
+                ? `Stress: ${latestCheckIn.stressLevel}/5 • Energy: ${latestCheckIn.energyLevel}/5 (${new Date(latestCheckIn.checkedInAt).toLocaleDateString()})`
+                : "Check in daily on /wellness to claim +25 XP"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Meditation Practice
+            </div>
+            <div className="text-sm font-bold text-teal-400">
+              {user.meditationLogs.length} Sessions Logged
+            </div>
+            <p className="text-xs text-slate-400">
+              {mindfulMinutes} total minutes in mindful stillness
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Yogic Mudras Practiced
+            </div>
+            <div className="text-sm font-bold text-amber-400">
+              {totalMudras} Practice Sessions
+            </div>
+            <p className="text-xs text-slate-400">
+              Traditional postural gestures recorded
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Achievements */}

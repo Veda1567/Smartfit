@@ -53,6 +53,14 @@ export default async function DashboardPage({
       waterLogs: true,
       workoutSessions: true,
       chessStats: true,
+      wellnessCheckIns: {
+        orderBy: { checkedInAt: "desc" },
+        take: 1,
+      },
+      meditationLogs: {
+        orderBy: { completedAt: "desc" },
+        take: 10,
+      },
     },
   });
 
@@ -91,6 +99,14 @@ export default async function DashboardPage({
       (sum, workout) => sum + (workout.estimatedCaloriesBurned ?? 0),
       0
     );
+
+  const todayCheckIn = user.wellnessCheckIns.find(
+    (c) => new Date(c.checkedInAt) >= today
+  );
+
+  const todayMeditations = user.meditationLogs.filter(
+    (m) => new Date(m.completedAt) >= today
+  ).length;
 
   const waterPercentage = Math.min(
     Math.round((todayWater / waterGoal) * 100),
@@ -458,6 +474,72 @@ export default async function DashboardPage({
             </div>
             <p className="text-xs text-slate-400">
               {guidance.mindfulnessTip}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Mental Wellness & Mindfulness Summary Card */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+              <Brain className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Mental Wellness &amp; Mindfulness
+              </h2>
+              <p className="text-xs text-slate-400">
+                {todayCheckIn
+                  ? `Checked in today • Mood: ${todayCheckIn.mood.toUpperCase()} • Stress: ${todayCheckIn.stressLevel}/5`
+                  : "Daily check-in pending • Take 1 minute to reflect and claim +25 XP"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/wellness">
+              <Button variant="primary" size="sm" className="text-slate-950 font-bold text-xs">
+                {todayCheckIn ? "Open Wellness Studio" : "Complete Daily Check-In"} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Today&apos;s Meditation
+            </div>
+            <div className="text-sm font-bold text-white">
+              {todayMeditations > 0 ? `${todayMeditations} Session${todayMeditations === 1 ? "" : "s"} Completed` : "Ready to practice"}
+            </div>
+            <p className="text-[11px] text-teal-400">
+              {todayMeditations > 0 ? "Mindfulness logged today" : "Try 5-min Mindfulness of Breath"}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Recommended Activity
+            </div>
+            <div className="text-sm font-bold text-white">
+              Box Breathing Reset (4m)
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Gentle autonomic nervous system pacing
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-1">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">
+              Self-Care Streak
+            </div>
+            <div className="text-sm font-bold text-brand-400">
+              {currentStreak} Days Consistent
+            </div>
+            <p className="text-[11px] text-slate-400">
+              +20 XP daily wellness consistency reward
             </p>
           </div>
         </div>

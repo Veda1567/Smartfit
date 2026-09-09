@@ -44,6 +44,7 @@ model User {
   userAchievements    UserAchievement[]
   userChallenges      UserChallengeProgress[]
   aiChatSessions      AIChatSession[]
+  wellnessCheckIns    WellnessCheckIn[]
 
   @@index([email])
   @@index([username])
@@ -218,6 +219,20 @@ model MudraProgress {
 
   @@unique([userId, mudraKey])
   @@index([userId])
+}
+
+model WellnessCheckIn {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood         String   // "great" | "good" | "okay" | "low" | "stressed"
+  stressLevel  Int      // 1 to 5
+  energyLevel  Int      // 1 to 5
+  sleepQuality String   // "excellent" | "good" | "fair" | "poor"
+  notes        String?  // private optional note, max 280 chars
+  checkedInAt  DateTime @default(now())
+
+  @@index([userId, checkedInAt])
 }
 
 // =========================================================================

@@ -1,0 +1,403 @@
+// Prisma Schema for SmartFit Platform
+// Unified Physical Fitness, Mental Wellness, Mudras, Chess & Cognitive Fitness, Gamification & AI Coach
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================================
+// 1. USER & CORE AUTHENTICATION
+// =========================================================================
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  role         String   @default("user") // "user" | "admin"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 1-to-1 Relationships
+  profile             Profile?
+  gamification        GamificationProfile?
+  nutritionPreference NutritionPreference?
+  waterPreference     WaterPreference?
+  chessStats          ChessStats?
+
+  // 1-to-Many Personal Logs & Progress
+  bmiRecords          BmiRecord[]
+  workoutPlans        WorkoutPlan[]
+  workoutSessions     WorkoutSession[]
+  nutritionLogs       NutritionLog[]
+  waterLogs           WaterLog[]
+  meditationLogs      MeditationLog[]
+  mudraProgress       MudraProgress[]
+  chessGames          ChessGame[]
+  chessPuzzleAttempts ChessPuzzleAttempt[]
+  brainGameAttempts   BrainGameAttempt[]
+  userAchievements    UserAchievement[]
+  userChallenges      UserChallengeProgress[]
+  aiChatSessions      AIChatSession[]
+
+  @@index([email])
+  @@index([username])
+}
+
+// =========================================================================
+// 2. PROFILE & BIOMETRICS (One-to-One with User)
+// =========================================================================
+
+model Profile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age            Int?
+  gender         String?  // "male" | "female" | "prefer_not_to_say" | "other"
+  heightCm       Float?
+  weightKg       Float?
+  fitnessGoal    String?  // "weight_loss" | "maintenance" | "muscle_gain" | "endurance" | "flexibility"
+  activityLevel  String?  // "sedentary" | "light" | "moderate" | "very_active"
+  currentBmi     Float?   // General screening metric
+  bmiCategory    String?  // "underweight" | "normal" | "overweight" | "obesity"
+  targetCalories Float?   // General non-medical estimate
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model BmiRecord {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg   Float
+  heightCm   Float
+  bmi        Float
+  recordedAt DateTime @default(now())
+
+  @@index([userId, recordedAt])
+}
+
+// =========================================================================
+// 3. FITNESS & WORKOUT MANAGEMENT
+// =========================================================================
+
+model WorkoutPlan {
+  id                   String           @id @default(cuid())
+  userId               String?          // null = system default preset, string = user-created
+  user                 User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  level                String           // "beginner" | "intermediate" | "advanced"
+  category             String           // "strength" | "cardio" | "yoga" | "flexibility"
+  estimatedDurationMin Int              @default(20)
+  isPreset             Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  exercises            Exercise[]
+  sessions             WorkoutSession[]
+
+  @@index([userId])
+  @@index([category, level])
+}
+
+model Exercise {
+  id           String       @id @default(cuid())
+  planId       String?
+  plan         WorkoutPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+  name         String
+  category     String       // "chest" | "legs" | "core" | "back" | "cardio" | "stretch"
+  sets         Int?
+  reps         Int?
+  durationSec  Int?
+  restSec      Int?         @default(45)
+  instructions String?
+  order        Int          @default(0)
+
+  @@index([planId])
+}
+
+model WorkoutSession {
+  id                      String       @id @default(cuid())
+  userId                  String
+  user                    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId                  String?
+  plan                    WorkoutPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  routineTitle            String
+  durationMinutes         Int
+  estimatedCaloriesBurned Float?
+  notes                   String?
+  completedAt             DateTime     @default(now())
+
+  @@index([userId, completedAt])
+}
+
+// =========================================================================
+// 4. NUTRITION & LIFESTYLE HABITS
+// =========================================================================
+
+model NutritionPreference {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dietaryStyle         String?  // "omnivore" | "vegetarian" | "vegan" | "pescatarian" | "flexible"
+  dailyCalorieTarget   Float?   // General estimate, non-medical
+  mealTimingPreference String?  // "3_meals" | "intermittent_fasting" | "small_frequent"
+  habitFocus           String?  // e.g. "more_vegetables", "protein_awareness", "less_refined_sugar"
+  updatedAt            DateTime @updatedAt
+}
+
+model NutritionLog {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealType          String   // "breakfast" | "lunch" | "dinner" | "snack" | "pre_workout" | "post_workout"
+  title             String
+  description       String?
+  estimatedCalories Float?
+  loggedAt          DateTime @default(now())
+
+  @@index([userId, loggedAt])
+}
+
+// =========================================================================
+// 5. WATER TRACKING & REMINDERS
+// =========================================================================
+
+model WaterPreference {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyTargetMl           Int      @default(2500)
+  reminderIntervalMinutes Int      @default(60)
+  enableAudio             Boolean  @default(true)
+  enableNotifications     Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
+}
+
+model WaterLog {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountMl Int      @default(250)
+  loggedAt DateTime @default(now())
+
+  @@index([userId, loggedAt])
+}
+
+// =========================================================================
+// 6. MENTAL WELLNESS, MEDITATION & MUDRAS
+// =========================================================================
+
+model MeditationLog {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionType     String   // "mindfulness" | "breathing" | "relaxation" | "sleep" | "focus"
+  durationMinutes Int
+  soundscape      String?  // "rain" | "waves" | "silence" | "singing_bowls"
+  notes           String?
+  completedAt     DateTime @default(now())
+
+  @@index([userId, completedAt])
+}
+
+model MudraProgress {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mudraKey      String   // e.g. "gyan", "prana", "vayu", "shunya", "surya"
+  practiceCount Int      @default(1)
+  totalMinutes  Int      @default(0)
+  lastPracticed DateTime @default(now())
+
+  @@unique([userId, mudraKey])
+  @@index([userId])
+}
+
+// =========================================================================
+// 7. CHESS & COGNITIVE FITNESS
+// =========================================================================
+
+model ChessGame {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opponentType String   @default("AI") // "AI" | "human"
+  difficulty   String   // "beginner" | "easy" | "medium" | "hard" | "advanced"
+  playerColor  String   // "white" | "black"
+  result       String   // "win" | "loss" | "draw"
+  movesCount   Int
+  pgn          String?  // Full move notation
+  finalFen     String?
+  playedAt     DateTime @default(now())
+
+  @@index([userId, playedAt])
+}
+
+model ChessStats {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eloRating     Int      @default(1200)
+  gamesPlayed   Int      @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  draws         Int      @default(0)
+  puzzleRating  Int      @default(1200)
+  puzzlesSolved Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@index([eloRating])
+}
+
+model ChessPuzzle {
+  id         String               @id @default(cuid())
+  fen        String               // Initial board state
+  moves      String               // Solution moves sequence
+  difficulty String               // "beginner" | "intermediate" | "advanced"
+  theme      String?              // "mate_in_1" | "mate_in_2" | "fork" | "pin" | "endgame"
+  rating     Int                  @default(1200)
+  attempts   ChessPuzzleAttempt[]
+
+  @@index([difficulty, rating])
+}
+
+model ChessPuzzleAttempt {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  puzzleId    String
+  puzzle      ChessPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  isSolved    Boolean
+  timeTakenSec Int?
+  attemptedAt DateTime    @default(now())
+
+  @@index([userId, attemptedAt])
+  @@index([puzzleId])
+}
+
+// =========================================================================
+// 8. BRAIN GAMES & COGNITIVE CHALLENGES
+// =========================================================================
+
+model BrainGameAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameType     String   // "memory_matrix" | "stroop_test" | "speed_math"
+  score        Int
+  levelReached Int      @default(1)
+  playedAt     DateTime @default(now())
+
+  @@index([userId, gameType])
+}
+
+// =========================================================================
+// 9. UNIFIED GAMIFICATION, STREAKS & LEADERBOARDS
+// =========================================================================
+
+model GamificationProfile {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalXP        Int       @default(0)
+  currentLevel   Int       @default(1)
+  currentStreak  Int       @default(0)
+  longestStreak  Int       @default(0)
+  weeklyXP       Int       @default(0)
+  lastActiveDate DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  @@index([totalXP])
+  @@index([weeklyXP])
+}
+
+model Achievement {
+  id               String            @id @default(cuid())
+  code             String            @unique // e.g. "FIRST_WORKOUT", "CHESS_TACTICIAN_1"
+  title            String
+  description      String
+  category         String            // "physical" | "mental" | "chess" | "consistency"
+  xpReward         Int               @default(50)
+  iconKey          String
+  createdAt        DateTime          @default(now())
+  userAchievements UserAchievement[]
+
+  @@index([category])
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model Challenge {
+  id           String                  @id @default(cuid())
+  title        String
+  description  String
+  type         String                  // "daily" | "weekly"
+  domain       String                  // "fitness" | "wellness" | "chess" | "hydration"
+  targetCount  Int                     @default(1)
+  xpReward     Int                     @default(100)
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime                @default(now())
+  userProgress UserChallengeProgress[]
+
+  @@index([type, domain])
+  @@index([startDate, endDate])
+}
+
+model UserChallengeProgress {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeId  String
+  challenge    Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  currentCount Int       @default(0)
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+
+  @@unique([userId, challengeId])
+  @@index([userId])
+}
+
+// =========================================================================
+// 10. SMARTFIT AI WELLNESS COACH (Minimal, Non-Sensitive History)
+// =========================================================================
+
+model AIChatSession {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String          @default("Wellness Guidance")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  messages  AIChatMessage[]
+
+  @@index([userId, createdAt])
+}
+
+model AIChatMessage {
+  id        String        @id @default(cuid())
+  sessionId String
+  session   AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender    String        // "user" | "assistant"
+  content   String
+  createdAt DateTime      @default(now())
+
+  @@index([sessionId, createdAt])
+}

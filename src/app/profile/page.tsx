@@ -13,6 +13,8 @@ import {
   Calendar,
   ChevronRight,
   Droplets,
+  Heart,
+  Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,12 @@ import { StatCard } from "@/components/ui/stat-card";
 import { AchievementCard } from "@/components/ui/achievement-card";
 import { EditProfileModal } from "@/components/profile/edit-profile-modal";
 import { generateFitnessGuidance } from "@/lib/validations/profile";
+import {
+  getLevelProgress,
+  getEffectiveStreak,
+  STANDARD_ACHIEVEMENTS,
+  checkAndAwardAchievements,
+} from "@/lib/gamification";
 
 function formatGoal(goal?: string | null) {
   if (!goal) return "Not set";
@@ -51,6 +59,9 @@ export default async function ProfilePage() {
     redirect("/login?callbackUrl=/profile");
   }
 
+  // Check achievements opportunistically
+  await checkAndAwardAchievements(session.id);
+
   const user = await prisma.user.findUnique({
     where: {
       id: session.id,
@@ -68,6 +79,18 @@ export default async function ProfilePage() {
         take: 5,
       },
       chessStats: true,
+      brainGameAttempts: {
+        orderBy: { playedAt: "desc" },
+        take: 5,
+      },
+      userAchievements: {
+        include: { achievement: true },
+        orderBy: { unlockedAt: "desc" },
+      },
+      activityLogs: {
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      },
       bmiRecords: {
         orderBy: {
           recordedAt: "desc",
@@ -116,49 +139,43 @@ export default async function ProfilePage() {
   const bmi = profile?.currentBmi;
   const bmiText = bmi ? bmi.toFixed(1) : "—";
 
-  const achievements = [
-    {
-      title: "First Step Forward",
-      description: "Completed your first logged workout session on SmartFit.",
-      category: "physical" as const,
-      xpReward: 50,
-      isUnlocked: user.workoutSessions.length > 0,
-      icon: <Dumbbell className="h-6 w-6" />,
-    },
-    {
-      title: "7-Day Iron Streak",
-      description: "Maintained active daily physical or mental workouts for 7 days.",
-      category: "consistency" as const,
-      xpReward: 100,
-      isUnlocked: (gamification?.currentStreak ?? 0) >= 7,
-      icon: <Flame className="h-6 w-6" />,
-    },
-    {
-      title: "Tactical Checkmate",
-      description: "Delivered checkmate in a match against Stockfish AI.",
-      category: "chess" as const,
-      xpReward: 80,
-      isUnlocked: (chessStats?.wins ?? 0) > 0,
-      icon: <Brain className="h-6 w-6" />,
-    },
-    {
-      title: "Mindful Master",
-      description: "Accumulated 100+ minutes of guided meditation sessions.",
-      category: "mental" as const,
-      xpReward: 120,
-      isUnlocked: mindfulMinutes >= 100,
-      icon: <Sparkles className="h-6 w-6" />,
-    },
-  ];
+  const levelInfo = getLevelProgress(gamification?.totalXP ?? 0);
+  const streakInfo = getEffectiveStreak(gamification);
+  const xp = levelInfo.totalXP;
+  const level = levelInfo.currentLevel;
+  const nextLevelXP = levelInfo.nextXP;
+  const xpProgress = levelInfo.progressPercentage;
+
+  const achievements = STANDARD_ACHIEVEMENTS.map((def) => {
+    const unlockedEntry = user.userAchievements.find(
+      (ua) => ua.achievement.code === def.code
+    );
+    const isUnlocked = Boolean(unlockedEntry);
+    const unlockedDate = unlockedEntry
+      ? new Date(unlockedEntry.unlockedAt).toLocaleDateString()
+      : undefined;
+
+    let icon = <Trophy className="h-6 w-6" />;
+    if (def.iconKey === "dumbbell") icon = <Dumbbell className="h-6 w-6" />;
+    else if (def.iconKey === "sparkles") icon = <Sparkles className="h-6 w-6" />;
+    else if (def.iconKey === "heart") icon = <Heart className="h-6 w-6" />;
+    else if (def.iconKey === "flame") icon = <Flame className="h-6 w-6" />;
+    else if (def.iconKey === "brain") icon = <Brain className="h-6 w-6" />;
+    else if (def.iconKey === "zap") icon = <Zap className="h-6 w-6" />;
+    else if (def.iconKey === "droplet") icon = <Droplets className="h-6 w-6" />;
+
+    return {
+      title: def.title,
+      description: def.description,
+      category: def.category as "physical" | "mental" | "chess" | "consistency",
+      xpReward: def.xpReward,
+      isUnlocked,
+      unlockedDate,
+      icon,
+    };
+  });
 
   const unlockedCount = achievements.filter((a) => a.isUnlocked).length;
-  const xp = gamification?.totalXP ?? 0;
-  const level = gamification?.currentLevel ?? 1;
-  const nextLevelXP = level * 300;
-  const xpProgress = Math.min(
-    100,
-    Math.round((xp / nextLevelXP) * 100)
-  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
@@ -592,6 +609,64 @@ export default async function ProfilePage() {
         </div>
 
       </div>
+
+      {/* Recent Activity & XP Audit History */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div>
+            <h3 className="text-lg font-bold text-white">
+              Recent Activity &amp; XP History
+            </h3>
+            <p className="text-xs text-slate-400">
+              Audited activity stream across physical fitness, mindfulness, chess, and brain drills
+            </p>
+          </div>
+          <Badge variant="brand">
+            {user.activityLogs.length} Events Logged
+          </Badge>
+        </div>
+
+        {user.activityLogs.length > 0 ? (
+          <div className="space-y-2.5 pt-1">
+            {user.activityLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 text-brand-400">
+                    <Activity className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white">{log.description}</div>
+                    <div className="text-[10px] text-slate-400">
+                      {new Date(log.createdAt).toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <Badge variant="amber" className="text-xs font-bold shrink-0">
+                  +{log.xpEarned} XP
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 p-6 text-center space-y-2">
+            <p className="text-sm text-slate-400">
+              No activity logs recorded yet.
+            </p>
+            <p className="text-xs text-slate-500">
+              Activities from workouts, meditations, mudras, chess matches, and cognitive games will appear here.
+            </p>
+          </div>
+        )}
+      </section>
 
     </div>
   );

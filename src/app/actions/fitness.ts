@@ -3,7 +3,11 @@
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
-import { awardUserXP } from "@/lib/gamification";
+import {
+  awardUserXP,
+  checkAndAwardAchievements,
+  recordActivityForChallenges,
+} from "@/lib/gamification";
 
 /**
  * Server action to log water intake (e.g. 250ml or 500ml).
@@ -61,11 +65,20 @@ export async function logWaterAction(amountMl: number = 250): Promise<{
     let message = `Logged +${validAmount} ml of water! 💧`;
     if (goalReached) {
       // Award +30 XP for reaching daily water goal
-      await awardUserXP(session.id, 30, "water_daily_goal_reached");
+      await awardUserXP(
+        session.id,
+        30,
+        "water_goal",
+        `Reached daily hydration target (${newTotal}ml / ${targetMl}ml)`,
+        { newTotal, targetMl }
+      );
+      await recordActivityForChallenges(session.id, "hydration", 1);
+      await checkAndAwardAchievements(session.id);
       message = `Goal achieved! ${newTotal} ml reached today! +30 XP awarded 🔥`;
     }
 
     revalidatePath("/fitness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
 
     return {

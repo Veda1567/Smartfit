@@ -3,7 +3,11 @@
 import prisma from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
-import { awardUserXP } from "@/lib/gamification";
+import {
+  awardUserXP,
+  checkAndAwardAchievements,
+  recordActivityForChallenges,
+} from "@/lib/gamification";
 import {
   validateWellnessCheckIn,
   type WellnessCheckInInput,
@@ -74,12 +78,21 @@ export async function recordWellnessCheckInAction(
     if (existingToday) {
       message = "Daily check-in updated! (Daily XP for today was already recorded).";
     } else {
-      await awardUserXP(session.id, 25, "wellness_daily_checkin");
+      await awardUserXP(
+        session.id,
+        25,
+        "wellness_checkin",
+        `Daily wellness check-in (Mood: ${values.mood.toUpperCase()})`
+      );
       xpEarned = 25;
       message = "Wellness check-in recorded! +25 XP awarded for mindful self-reflection 🌿";
+
+      await recordActivityForChallenges(session.id, "wellness", 1);
+      await checkAndAwardAchievements(session.id);
     }
 
     revalidatePath("/wellness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
     revalidatePath("/profile");
 
@@ -168,13 +181,23 @@ export async function logMeditationSessionAction(data: {
     if (alreadyCompletedToday) {
       message = `Meditation session logged in your mindfulness history! (Daily XP for ${sessionType} was already claimed today).`;
     } else {
-      await awardUserXP(session.id, 50, "meditation_session");
+      await awardUserXP(
+        session.id,
+        50,
+        "meditation",
+        `Meditation Session: ${sessionType} (${durationMinutes}m)`,
+        { sessionType, durationMinutes }
+      );
       xpEarned = 50;
       message = `Meditation session completed! +50 XP awarded 🧘 Keep cultivating stillness!`;
+
+      await recordActivityForChallenges(session.id, "wellness", 1);
+      await checkAndAwardAchievements(session.id);
     }
 
     revalidatePath("/meditation");
     revalidatePath("/wellness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
     revalidatePath("/profile");
 
@@ -258,12 +281,22 @@ export async function logBreathingSessionAction(data: {
     if (alreadyCompletedToday) {
       message = "Breathing session saved to your wellness history! (Daily XP for breathing was already claimed).";
     } else {
-      await awardUserXP(session.id, 30, "breathing_session");
+      await awardUserXP(
+        session.id,
+        30,
+        "breathing",
+        `Breathing Session: ${pattern} (${durationMinutes}m)`,
+        { pattern, durationMinutes, cycles }
+      );
       xpEarned = 30;
       message = "Guided breathing completed! +30 XP awarded 💨 Nervous system balanced!";
+
+      await recordActivityForChallenges(session.id, "wellness", 1);
+      await checkAndAwardAchievements(session.id);
     }
 
     revalidatePath("/wellness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
 
     return {
@@ -343,13 +376,23 @@ export async function logMudraPracticeAction(data: {
     if (alreadyPracticedToday) {
       message = `Mudra practice recorded! (Daily XP for ${mudraKey} was already claimed today).`;
     } else {
-      await awardUserXP(session.id, 30, "mudra_practice");
+      await awardUserXP(
+        session.id,
+        30,
+        "mudra",
+        `Mudra Practice: ${mudraKey} (${durationMinutes}m)`,
+        { mudraKey, durationMinutes }
+      );
       xpEarned = 30;
       message = `Mudra practice completed! +30 XP awarded ✨ Mind and body grounded!`;
+
+      await recordActivityForChallenges(session.id, "wellness", 1);
+      await checkAndAwardAchievements(session.id);
     }
 
     revalidatePath("/mudras");
     revalidatePath("/wellness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
     revalidatePath("/profile");
 

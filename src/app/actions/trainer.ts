@@ -9,7 +9,11 @@ import {
   estimateTargetCalories,
   type ProfileActionState,
 } from "@/lib/validations/profile";
-import { awardUserXP, checkAndAwardWorkoutAchievements } from "@/lib/gamification";
+import {
+  awardUserXP,
+  checkAndAwardWorkoutAchievements,
+  recordActivityForChallenges,
+} from "@/lib/gamification";
 
 export type TrainerActionState = {
   success?: boolean;
@@ -228,8 +232,17 @@ export async function logWorkoutSessionAction(data: {
       message = `Workout session saved to your fitness history! (Daily XP for "${routineTitle}" was already claimed earlier today).`;
     } else {
       // First completion today: Award standard +100 XP
-      await awardUserXP(session.id, 100, "workout_session");
+      await awardUserXP(
+        session.id,
+        100,
+        "workout_session",
+        `Completed Workout: ${routineTitle}`,
+        { routineTitle, durationMinutes, estimatedCalories }
+      );
       xpEarned = 100;
+
+      // Update fitness challenge progress
+      await recordActivityForChallenges(session.id, "fitness", 1);
 
       // Check for first workout achievement
       unlockedAchievement = await checkAndAwardWorkoutAchievements(session.id);
@@ -244,6 +257,7 @@ export async function logWorkoutSessionAction(data: {
 
     revalidatePath("/trainer");
     revalidatePath("/fitness");
+    revalidatePath("/challenges");
     revalidatePath("/dashboard");
     revalidatePath("/profile");
 

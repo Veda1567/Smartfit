@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatCard } from "@/components/ui/stat-card";
 import { generateFitnessGuidance } from "@/lib/validations/profile";
+import { getLevelProgress, getEffectiveStreak, seedChallengesIfEmpty } from "@/lib/gamification";
 
 export default async function DashboardPage({
   searchParams,
@@ -39,30 +40,46 @@ export default async function DashboardPage({
     redirect("/login?callbackUrl=/dashboard");
   }
 
+  await seedChallengesIfEmpty();
+
   const params = searchParams ? await searchParams : {};
   const justCompletedOnboarding = params.onboarding === "success";
 
-  const user = await prisma.user.findUnique({
-    where: {
-      id: session.id,
-    },
-    include: {
-      profile: true,
-      gamification: true,
-      waterPreference: true,
-      waterLogs: true,
-      workoutSessions: true,
-      chessStats: true,
-      wellnessCheckIns: {
-        orderBy: { checkedInAt: "desc" },
-        take: 1,
+  const [user, todayChallenge] = await Promise.all([
+    prisma.user.findUnique({
+      where: {
+        id: session.id,
       },
-      meditationLogs: {
-        orderBy: { completedAt: "desc" },
-        take: 10,
+      include: {
+        profile: true,
+        gamification: true,
+        waterPreference: true,
+        waterLogs: true,
+        workoutSessions: true,
+        chessStats: true,
+        activityLogs: {
+          orderBy: { createdAt: "desc" },
+          take: 4,
+        },
+        wellnessCheckIns: {
+          orderBy: { checkedInAt: "desc" },
+          take: 1,
+        },
+        meditationLogs: {
+          orderBy: { completedAt: "desc" },
+          take: 10,
+        },
       },
-    },
-  });
+    }),
+    prisma.challenge.findFirst({
+      where: { endDate: { gte: new Date() }, type: "daily" },
+      include: {
+        userProgress: {
+          where: { userId: session.id },
+        },
+      },
+    }),
+  ]);
 
   if (!user) {
     redirect("/login?callbackUrl=/dashboard");
@@ -113,15 +130,14 @@ export default async function DashboardPage({
     100
   );
 
-  const currentXP = gamification?.totalXP ?? 0;
-  const currentLevel = gamification?.currentLevel ?? 1;
-  const currentStreak = gamification?.currentStreak ?? 0;
+  const levelInfo = getLevelProgress(gamification?.totalXP ?? 0);
+  const streakInfo = getEffectiveStreak(gamification);
 
-  const nextLevelXP = currentLevel * 500;
-  const xpPercentage = Math.min(
-    Math.round((currentXP / nextLevelXP) * 100),
-    100
-  );
+  const currentXP = levelInfo.totalXP;
+  const currentLevel = levelInfo.currentLevel;
+  const nextLevelXP = levelInfo.nextXP;
+  const xpPercentage = levelInfo.progressPercentage;
+  const currentStreak = streakInfo.currentStreak;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-8">
@@ -559,87 +575,133 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
           <Link href="/trainer">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Trainer
             </Button>
           </Link>
 
           <Link href="/fitness">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Fitness
             </Button>
           </Link>
 
           <Link href="/wellness">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Wellness
             </Button>
           </Link>
 
           <Link href="/meditation">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Meditation
             </Button>
           </Link>
 
           <Link href="/chess">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Chess
             </Button>
           </Link>
 
+          <Link href="/cognitive">
+            <Button variant="secondary" className="w-full text-xs py-2">
+              Cognitive
+            </Button>
+          </Link>
+
           <Link href="/challenges">
-            <Button variant="secondary" className="w-full">
+            <Button variant="secondary" className="w-full text-xs py-2">
               Challenges
             </Button>
           </Link>
 
+          <Link href="/leaderboard">
+            <Button variant="secondary" className="w-full text-xs py-2">
+              Leaderboard
+            </Button>
+          </Link>
         </div>
       </section>
 
-      {/* Daily Challenge */}
-      <section>
-        <Card className="border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-slate-900">
-          <CardContent className="p-6">
+      {/* Daily Challenge & Recent Activity Grid */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Daily Challenge */}
+        <div className="lg:col-span-7">
+          <Card className="border-amber-500/20 bg-gradient-to-r from-amber-500/5 to-slate-900 h-full flex flex-col justify-between">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 shrink-0">
+                    <Trophy className="h-6 w-6 text-amber-400" />
+                  </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="amber">Today&apos;s Active Quest</Badge>
+                      <span className="text-xs text-brand-400 font-bold">
+                        +{todayChallenge?.xpReward ?? 50} XP
+                      </span>
+                    </div>
 
-              <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-white text-base">
+                      {todayChallenge?.title ?? "Complete one fitness or cognitive activity"}
+                    </h3>
 
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-                  <Trophy className="h-6 w-6 text-amber-400" />
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {todayChallenge?.description ?? "Earn XP and maintain your daily streak consistency."}
+                    </p>
+                  </div>
                 </div>
-
-                <div>
-                  <Badge variant="amber" className="mb-1">
-                    Today's Challenge
-                  </Badge>
-
-                  <h3 className="font-bold text-white">
-                    Complete one fitness or cognitive activity
-                  </h3>
-
-                  <p className="text-xs text-slate-400">
-                    Earn +50 XP and maintain your streak.
-                  </p>
-                </div>
-
               </div>
 
-              <Link href="/challenges">
-                <Button className="flex items-center gap-2">
-                  View Challenge
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <div className="pt-2 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  Status: {todayChallenge?.userProgress?.[0]?.isCompleted ? "Completed" : "In Progress"}
+                </span>
+                <Link href="/challenges">
+                  <Button size="sm" className="flex items-center gap-1.5 text-xs">
+                    <span>View Arena</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            </div>
-
-          </CardContent>
-        </Card>
+        {/* Recent Activity Feed */}
+        <div className="lg:col-span-5">
+          <Card className="border-slate-800 bg-slate-900/80 h-full">
+            <CardHeader className="p-5 pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Recent Activity & XP</CardTitle>
+                <Badge variant="slate" className="text-[10px]">Audit Stream</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-2">
+              {user.activityLogs && user.activityLogs.length > 0 ? (
+                user.activityLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between py-2 border-b border-slate-800/60 last:border-0 text-xs"
+                  >
+                    <span className="text-slate-300 truncate max-w-[200px]">{log.description}</span>
+                    <Badge variant="amber" className="text-[10px] shrink-0 font-bold">
+                      +{log.xpEarned} XP
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-slate-500 py-3 text-center">
+                  No activity logged yet today. Complete a workout or meditation to earn your first XP!
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
     </div>

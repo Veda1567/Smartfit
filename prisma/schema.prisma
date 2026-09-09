@@ -45,6 +45,7 @@ model User {
   userChallenges      UserChallengeProgress[]
   aiChatSessions      AIChatSession[]
   wellnessCheckIns    WellnessCheckIn[]
+  activityLogs        ActivityLog[]
 
   @@index([email])
   @@index([username])
@@ -388,6 +389,20 @@ model UserChallengeProgress {
 
   @@unique([userId, challengeId])
   @@index([userId])
+}
+
+model ActivityLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activityType String   // "workout" | "meditation" | "mudra" | "wellness_checkin" | "breathing" | "hydration" | "challenge" | "chess" | "cognitive"
+  xpEarned     Int      @default(0)
+  description  String
+  metadata     String?  // JSON audit metadata
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, activityType])
 }
 
 // =========================================================================

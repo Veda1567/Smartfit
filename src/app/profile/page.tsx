@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/session";
 import prisma from "@/lib/prisma";
 import {
@@ -7,12 +8,19 @@ import {
   Dumbbell,
   Brain,
   Sparkles,
+  Activity,
+  History,
+  Calendar,
+  ChevronRight,
+  Droplets,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatCard } from "@/components/ui/stat-card";
 import { AchievementCard } from "@/components/ui/achievement-card";
 import { EditProfileModal } from "@/components/profile/edit-profile-modal";
+import { generateFitnessGuidance } from "@/lib/validations/profile";
 
 function formatGoal(goal?: string | null) {
   if (!goal) return "Not set";
@@ -53,6 +61,12 @@ export default async function ProfilePage() {
       workoutSessions: true,
       meditationLogs: true,
       chessStats: true,
+      bmiRecords: {
+        orderBy: {
+          recordedAt: "desc",
+        },
+        take: 10,
+      },
     },
   });
 
@@ -63,6 +77,17 @@ export default async function ProfilePage() {
   const profile = user.profile;
   const gamification = user.gamification;
   const chessStats = user.chessStats;
+  const bmiRecords = user.bmiRecords;
+
+  const guidance = generateFitnessGuidance({
+    fitnessGoal: profile?.fitnessGoal,
+    bmiCategory: profile?.bmiCategory,
+    bmi: profile?.currentBmi,
+    activityLevel: profile?.activityLevel,
+    gender: profile?.gender,
+    targetCalories: profile?.targetCalories,
+    weightKg: profile?.weightKg,
+  });
 
   const workoutMinutes = user.workoutSessions.reduce(
     (sum, workout) => sum + workout.durationMinutes,
@@ -284,6 +309,180 @@ export default async function ProfilePage() {
         />
 
       </div>
+
+      {/* Incomplete Profile Prompt Banner */}
+      {(!profile?.heightCm || !profile?.weightKg || !profile?.fitnessGoal) && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">
+                Complete Your Fitness Profile
+              </h3>
+              <p className="text-xs text-slate-300">
+                Unlock accurate BMI classification, auto-calculated daily calorie targets, and customized workout regimens.
+              </p>
+            </div>
+          </div>
+          <Link href="/onboarding" className="shrink-0">
+            <Button variant="primary" size="sm" className="flex items-center gap-2">
+              <span>Start Onboarding</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {/* Personalized Roadmap Card */}
+      <section className="rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900 to-slate-950 p-6 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Personalized Fitness & Wellness Roadmap
+              </h2>
+              <p className="text-xs text-slate-400 capitalize">
+                Focus: {profile?.fitnessGoal ? profile.fitnessGoal.replace("_", " ") : "Custom Plan"} • Category: {profile?.bmiCategory ? profile.bmiCategory : "Pending Screening"}
+              </p>
+            </div>
+          </div>
+          <Badge variant="brand" className="text-xs">
+            {guidance.weeklyFrequency}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold">
+              <Dumbbell className="h-4 w-4" />
+              <span>Recommended Regimen</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              {guidance.recommendedRoutine}
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.activityTip}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold">
+              <Flame className="h-4 w-4" />
+              <span>Calorie Guidance</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              {profile?.targetCalories ? `${profile.targetCalories.toLocaleString()} kcal/day` : "Calculated on Save"}
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.calorieAdvice}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-purple-400 text-xs font-semibold">
+              <Brain className="h-4 w-4" />
+              <span>Mindfulness & Mudras</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              Cognitive & Stress Modulation
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.mindfulnessTip}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* BMI & Biometric History Log */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">
+                BMI & Biometric Screening History
+              </h3>
+              <p className="text-xs text-slate-400">
+                Logged historical body mass index data using WHO screening standards
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span>Normal range: <strong className="text-brand-400">18.5 – 24.9</strong></span>
+          </div>
+        </div>
+
+        {bmiRecords.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400">
+                  <th className="py-2.5 px-3 font-semibold">Date</th>
+                  <th className="py-2.5 px-3 font-semibold">Height</th>
+                  <th className="py-2.5 px-3 font-semibold">Weight</th>
+                  <th className="py-2.5 px-3 font-semibold">Screening BMI</th>
+                  <th className="py-2.5 px-3 font-semibold">Category</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {bmiRecords.map((record) => {
+                  let cat = "Normal";
+                  let catVariant: "brand" | "amber" | "rose" = "brand";
+                  if (record.bmi < 18.5) {
+                    cat = "Underweight";
+                    catVariant = "amber";
+                  } else if (record.bmi < 25) {
+                    cat = "Normal";
+                    catVariant = "brand";
+                  } else if (record.bmi < 30) {
+                    cat = "Overweight";
+                    catVariant = "amber";
+                  } else {
+                    cat = "Obesity";
+                    catVariant = "rose";
+                  }
+
+                  return (
+                    <tr key={record.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-3 text-slate-300 font-medium">
+                        {new Date(record.recordedAt).toLocaleDateString(undefined, {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </td>
+                      <td className="py-3 px-3 text-slate-200">{record.heightCm} cm</td>
+                      <td className="py-3 px-3 text-slate-200">{record.weightKg} kg</td>
+                      <td className="py-3 px-3 font-bold text-white">{record.bmi.toFixed(1)}</td>
+                      <td className="py-3 px-3">
+                        <Badge variant={catVariant} className="text-[10px] capitalize">
+                          {cat}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-950/40 p-6 text-center space-y-2">
+            <p className="text-sm text-slate-400">
+              No BMI history logged yet.
+            </p>
+            <p className="text-xs text-slate-500">
+              Use &ldquo;Edit Profile&rdquo; above or complete onboarding to record your first height and weight.
+            </p>
+          </div>
+        )}
+      </section>
 
       {/* Achievements */}
       <div className="space-y-4">

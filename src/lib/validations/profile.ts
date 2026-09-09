@@ -134,6 +134,142 @@ export function estimateTargetCalories(params: {
   return Math.max(1200, Math.round(tdee));
 }
 
+export type PersonalizedGuidance = {
+  headline: string;
+  summary: string;
+  recommendedRoutine: string;
+  weeklyFrequency: string;
+  calorieAdvice: string;
+  hydrationTargetMl: number;
+  activityTip: string;
+  mindfulnessTip: string;
+};
+
+/**
+ * Generates personalized basic fitness and lifestyle guidance based on user goal, BMI, and activity level.
+ */
+export function generateFitnessGuidance(params: {
+  fitnessGoal?: string | null;
+  bmiCategory?: string | null;
+  bmi?: number | null;
+  activityLevel?: string | null;
+  gender?: string | null;
+  targetCalories?: number | null;
+  weightKg?: number | null;
+}): PersonalizedGuidance {
+  const goal = params.fitnessGoal || "weight_loss";
+  const category = params.bmiCategory || "normal";
+
+  // Base hydration: ~35ml per kg of bodyweight, bounded between 2000ml and 4000ml
+  const weight = params.weightKg || 70;
+  const calculatedWater = Math.min(
+    4000,
+    Math.max(2000, Math.round((weight * 35) / 250) * 250)
+  );
+
+  let headline = "Balanced Mind & Body Plan";
+  let summary =
+    "A balanced holistic routine integrating cardiovascular health, resistance training, and mindful recovery.";
+  let recommendedRoutine = "Full-Body Functional Movement";
+  let weeklyFrequency = "3–4 Days / Week";
+  let calorieAdvice = params.targetCalories
+    ? `Target roughly ${params.targetCalories.toLocaleString()} kcal/day to match your maintenance energy needs.`
+    : "Maintain a balanced whole-food diet with balanced macronutrients.";
+  let activityTip = "Stay consistent with daily steps and light movement.";
+  let mindfulnessTip =
+    "Practice 10 minutes of box breathing daily to modulate cortisol and support autonomic nervous system balance.";
+
+  if (goal === "weight_loss") {
+    headline = "Metabolic Conditioning & Lean Fat Loss";
+    summary =
+      "Combines high-density resistance circuits and aerobic tempo conditioning to maximize caloric expenditure while preserving lean muscle mass.";
+    recommendedRoutine = "Full-Body Metabolic Circuit & Cardio Conditioning";
+    weeklyFrequency = "3–4 Days / Week (25–35 min sessions)";
+    calorieAdvice = params.targetCalories
+      ? `Aim for ~${params.targetCalories.toLocaleString()} kcal/day (a safe ~400 kcal deficit) to promote steady fat loss.`
+      : "Focus on nutrient-dense lean proteins, fiber-rich vegetables, and a modest caloric deficit.";
+    activityTip =
+      "Incorporate 7,000–10,000 daily steps and active recovery walks on non-training days.";
+    mindfulnessTip =
+      "Pair post-workout cool-downs with Surya or Prana Mudra and 5 minutes of mindful breath awareness to accelerate recovery.";
+  } else if (goal === "muscle_gain") {
+    headline = "Hypertrophy & Progressive Strength Development";
+    summary =
+      "Focuses on mechanical tension, progressive overload, and hypertrophy resistance training paired with sufficient protein intake.";
+    recommendedRoutine = "Upper / Lower Split & Core Resistance";
+    weeklyFrequency = "4–5 Days / Week (35–45 min sessions)";
+    calorieAdvice = params.targetCalories
+      ? `Aim for ~${params.targetCalories.toLocaleString()} kcal/day (a modest ~350 kcal surplus) to fuel muscular adaptation.`
+      : "Consume 1.6–2.2g of protein per kg of body weight to optimize muscle protein synthesis.";
+    activityTip =
+      "Prioritize 8 hours of quality sleep for peak growth hormone release and central nervous system replenishment.";
+    mindfulnessTip =
+      "Incorporate Gyan Mudra during evening meditation to quiet neural fatigue and prime the body for deep restorative sleep.";
+  } else if (goal === "endurance") {
+    headline = "Cardiovascular Stamina & Aerobic Resilience";
+    summary =
+      "Designed to enhance VO2 sub-max, mitochondrial density, and cardiac output through intervals and steady-state conditioning.";
+    recommendedRoutine = "Aerobic Tempo Conditioning & Core Stability";
+    weeklyFrequency = "4 Days / Week (30–50 min sessions)";
+    calorieAdvice = params.targetCalories
+      ? `Fuel your sessions with ~${params.targetCalories.toLocaleString()} kcal/day, emphasizing complex carbohydrates for glycogen storage.`
+      : "Maintain continuous hydration and replenish electrolytes around longer training sessions.";
+    activityTip =
+      "Monitor resting heart rate trends to balance training volume with adequate recovery periods.";
+    mindfulnessTip =
+      "Practice 4-7-8 rhythmic breathing before sleep to downregulate sympathetic stimulation after cardio sessions.";
+  } else if (goal === "flexibility") {
+    headline = "Mobility, Posture & Yogic Flow Restoration";
+    summary =
+      "Enhances joint range of motion, connective tissue elasticity, and postural alignment through dynamic mobility and yogic asanas.";
+    recommendedRoutine = "Dynamic Yoga, Thoracic Mobility & Deep Asanas";
+    weeklyFrequency = "3–5 Days / Week (20–30 min sessions)";
+    calorieAdvice = params.targetCalories
+      ? `Target ~${params.targetCalories.toLocaleString()} kcal/day with antioxidant-rich anti-inflammatory foods.`
+      : "Focus on whole foods rich in omega-3 fatty acids to promote joint lubrication and tissue recovery.";
+    activityTip =
+      "Perform 5-minute movement snacks every 90 minutes of desk work to prevent postural stiffness.";
+    mindfulnessTip =
+      "Practice Vayu and Shunya Mudras alongside your daily flexibility routines to calm mental agitation.";
+  } else if (goal === "maintenance") {
+    headline = "Total Physical & Cognitive Vitality";
+    summary =
+      "Sustains lean muscle mass, cardiovascular conditioning, and mental sharpness for long-term healthspan.";
+    recommendedRoutine = "Full-Body Strength & Cognitive Arena Sessions";
+    weeklyFrequency = "3 Days / Week (30 min sessions)";
+    calorieAdvice = params.targetCalories
+      ? `Maintain your energy equilibrium at ~${params.targetCalories.toLocaleString()} kcal/day.`
+      : "Eat intuitive, balanced meals focusing on colorful produce, quality protein, and healthy fats.";
+    activityTip =
+      "Engage in cross-training: play chess tactical puzzles or cognitive matrix drills after physical workouts.";
+    mindfulnessTip =
+      "Alternate mindfulness meditation with tactical chess games to strengthen both neural discipline and emotional composure.";
+  }
+
+  // BMI Category specific adjustments
+  if (category === "underweight") {
+    calorieAdvice +=
+      " Note: Since your screening BMI is in the underweight range, focus on nutrient-dense calorie-rich foods and avoid aggressive caloric deficits.";
+  } else if (category === "overweight") {
+    activityTip +=
+      " Low-impact cardio (brisk walking, cycling) is ideal to elevate caloric burn while protecting joint cartilage.";
+  } else if (category === "obesity") {
+    activityTip =
+      "Begin with joint-friendly low-impact movements such as walking, bodyweight air squats to a box, and water aerobics. Avoid sudden high-impact plyometrics.";
+  }
+
+  return {
+    headline,
+    summary,
+    recommendedRoutine,
+    weeklyFrequency,
+    calorieAdvice,
+    hydrationTargetMl: calculatedWater,
+    activityTip,
+    mindfulnessTip,
+  };
+}
+
 export function validateProfileInput(input: {
   age?: string | number | null;
   gender?: string | null;

@@ -3,7 +3,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 import { verifySessionToken } from "@/lib/jwt";
 import { sanitizeCallbackUrl } from "@/lib/validations/auth";
 
-const PROTECTED_PREFIXES = ["/profile", "/dashboard"];
+const PROTECTED_PREFIXES = ["/profile", "/dashboard", "/onboarding"];
 const AUTH_PAGES = ["/login", "/register"];
 
 function isProtectedPath(pathname: string): boolean {
@@ -51,6 +51,8 @@ export const config = {
     "/profile/:path*",
     "/dashboard",
     "/dashboard/:path*",
+    "/onboarding",
+    "/onboarding/:path*",
     "/login",
     "/register",
   ],

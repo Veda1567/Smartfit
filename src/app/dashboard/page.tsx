@@ -26,13 +26,21 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatCard } from "@/components/ui/stat-card";
+import { generateFitnessGuidance } from "@/lib/validations/profile";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ onboarding?: string }>;
+}) {
   const session = await getSession();
 
   if (!session) {
     redirect("/login?callbackUrl=/dashboard");
   }
+
+  const params = searchParams ? await searchParams : {};
+  const justCompletedOnboarding = params.onboarding === "success";
 
   const user = await prisma.user.findUnique({
     where: {
@@ -54,7 +62,21 @@ export default async function DashboardPage() {
 
   const profile = user.profile;
   const gamification = user.gamification;
-  const waterGoal = user.waterPreference?.dailyTargetMl ?? 2500;
+  const isProfileIncomplete =
+    !profile || !profile.heightCm || !profile.weightKg || !profile.fitnessGoal;
+
+  const guidance = generateFitnessGuidance({
+    fitnessGoal: profile?.fitnessGoal,
+    bmiCategory: profile?.bmiCategory,
+    bmi: profile?.currentBmi,
+    activityLevel: profile?.activityLevel,
+    gender: profile?.gender,
+    targetCalories: profile?.targetCalories,
+    weightKg: profile?.weightKg,
+  });
+
+  const waterGoal =
+    user.waterPreference?.dailyTargetMl ?? guidance.hydrationTargetMl ?? 2500;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -88,6 +110,50 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-8">
 
+      {/* Onboarding Success Celebration Banner */}
+      {justCompletedOnboarding && (
+        <div className="rounded-2xl border border-brand-500/40 bg-brand-500/10 p-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-brand-500/20 text-brand-400 shrink-0">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">
+                Fitness Profile Configured! +50 XP Awarded 🔥
+              </h3>
+              <p className="text-xs text-brand-300">
+                Your screening BMI, daily energy guidance, and personalized roadmap are now active.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Incomplete Profile Prompt Banner */}
+      {isProfileIncomplete && !justCompletedOnboarding && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
+              <Activity className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">
+                Fitness Profile Setup Pending
+              </h3>
+              <p className="text-xs text-slate-300">
+                Complete your quick 2-minute biometrics scan to unlock accurate WHO BMI categorization, daily calorie estimates, and tailored regimens.
+              </p>
+            </div>
+          </div>
+          <Link href="/onboarding" className="shrink-0">
+            <Button variant="primary" size="sm" className="flex items-center gap-2">
+              <span>Complete Onboarding</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      )}
+
       {/* Welcome */}
       <section className="rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
@@ -101,7 +167,7 @@ export default async function DashboardPage() {
             </h1>
 
             <p className="mt-2 text-sm text-slate-400">
-              Your complete mind and body wellness journey starts here.
+              {guidance.headline} • {guidance.weeklyFrequency}
             </p>
           </div>
 
@@ -126,24 +192,40 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
           <StatCard
-            title="BMI"
-            value={profile?.currentBmi?.toFixed(1) ?? "—"}
+            title="Screening BMI"
+            value={profile?.currentBmi ? `${profile.currentBmi.toFixed(1)}` : "—"}
             subtitle={
               profile?.bmiCategory
-                ? profile.bmiCategory
-                : "Not calculated yet"
+                ? `WHO Category: ${profile.bmiCategory.charAt(0).toUpperCase() + profile.bmiCategory.slice(1)}`
+                : "Setup required"
             }
             icon={<Activity className="h-5 w-5 text-brand-400" />}
-            badgeText={profile?.bmiCategory ?? "Pending"}
-            badgeVariant="brand"
+            badgeText={profile?.bmiCategory ? profile.bmiCategory.toUpperCase() : "PENDING"}
+            badgeVariant={
+              profile?.bmiCategory === "normal"
+                ? "brand"
+                : profile?.bmiCategory === "obesity"
+                ? "rose"
+                : "amber"
+            }
           />
 
           <StatCard
-            title="Today's Calories"
-            value={`${Math.round(todayCalories)} kcal`}
-            subtitle="Estimated activity"
+            title="Daily Calorie Target"
+            value={
+              profile?.targetCalories
+                ? `${profile.targetCalories.toLocaleString()} kcal`
+                : todayCalories > 0
+                ? `${Math.round(todayCalories)} kcal`
+                : "—"
+            }
+            subtitle={
+              profile?.targetCalories
+                ? "Estimated daily target"
+                : "Complete profile to estimate"
+            }
             icon={<Flame className="h-5 w-5 text-amber-400" />}
-            badgeText={todayCalories > 0 ? "Active" : "Start"}
+            badgeText={profile?.targetCalories ? "Calibrated" : "Estimate"}
             badgeVariant="amber"
           />
 
@@ -314,6 +396,71 @@ export default async function DashboardPage() {
 
           </CardContent>
         </Card>
+      </section>
+
+      {/* Personalized Roadmap Banner Card */}
+      <section className="rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900 to-slate-950 p-6 sm:p-7 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-brand-500/10 text-brand-400 border border-brand-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">
+                Personalized Fitness & Wellness Roadmap
+              </h2>
+              <p className="text-xs text-slate-400 capitalize">
+                Goal: {profile?.fitnessGoal ? profile.fitnessGoal.replace("_", " ") : "Custom Plan"} • Category: {profile?.bmiCategory ? profile.bmiCategory : "Pending Screening"}
+              </p>
+            </div>
+          </div>
+          <Link href="/profile">
+            <Button variant="outline" size="sm" className="text-xs">
+              View Profile & History
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-brand-400 text-xs font-semibold">
+              <Dumbbell className="h-4 w-4" />
+              <span>Recommended Regimen</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              {guidance.recommendedRoutine}
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.activityTip}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-semibold">
+              <Flame className="h-4 w-4" />
+              <span>Caloric Target Guidance</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              {profile?.targetCalories ? `${profile.targetCalories.toLocaleString()} kcal/day` : "Calibrate in Profile"}
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.calorieAdvice}
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 text-purple-400 text-xs font-semibold">
+              <Brain className="h-4 w-4" />
+              <span>Cognitive & Mudra Pairing</span>
+            </div>
+            <div className="text-sm font-bold text-white">
+              {guidance.weeklyFrequency}
+            </div>
+            <p className="text-xs text-slate-400">
+              {guidance.mindfulnessTip}
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Quick Access */}

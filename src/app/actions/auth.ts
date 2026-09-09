@@ -173,6 +173,13 @@ export async function loginAction(
         username: true,
         role: true,
         passwordHash: true,
+        profile: {
+          select: {
+            heightCm: true,
+            weightKg: true,
+            fitnessGoal: true,
+          },
+        },
       },
     });
   } catch (error) {
@@ -206,7 +213,11 @@ export async function loginAction(
   revalidatePath("/profile");
 
   const rawCallback = String(formData.get("callbackUrl") ?? "").trim();
-  const safeRedirect = sanitizeCallbackUrl(rawCallback, "/dashboard");
+  const hasCompletedProfile = Boolean(
+    user.profile?.heightCm && user.profile?.weightKg && user.profile?.fitnessGoal
+  );
+  const defaultDestination = hasCompletedProfile ? "/dashboard" : "/onboarding";
+  const safeRedirect = sanitizeCallbackUrl(rawCallback, defaultDestination);
 
   redirect(safeRedirect);
 }

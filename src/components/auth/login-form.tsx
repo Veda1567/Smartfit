@@ -13,9 +13,11 @@ const initialState: AuthActionState = {};
 
 export function LoginForm({
   registered = false,
-  callbackUrl = "/profile",
+  loggedOut = false,
+  callbackUrl = "/dashboard",
 }: {
   registered?: boolean;
+  loggedOut?: boolean;
   callbackUrl?: string;
 }) {
   const [state, formAction, pending] = useActionState(loginAction, initialState);
@@ -46,7 +48,16 @@ export function LoginForm({
           role="status"
           className="rounded-xl border border-brand-500/30 bg-brand-500/10 px-4 py-3 text-sm text-brand-300"
         >
-          Account created. Sign in with your new credentials.
+          Account created! Sign in with your new credentials.
+        </div>
+      )}
+
+      {loggedOut && !registered && !state.error && (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+        >
+          You have been signed out successfully.
         </div>
       )}
 
@@ -113,7 +124,11 @@ export function LoginForm({
       <p className="text-center text-sm text-slate-400">
         New to SmartFit?{" "}
         <Link
-          href="/register"
+          href={
+            callbackUrl && callbackUrl !== "/dashboard"
+              ? `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`
+              : "/register"
+          }
           className="font-semibold text-brand-400 hover:text-brand-300"
         >
           Create an account

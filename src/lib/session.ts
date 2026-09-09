@@ -28,7 +28,13 @@ export async function clearSession(): Promise<void> {
   jar.set(SESSION_COOKIE_NAME, "", {
     ...cookieOptions(),
     maxAge: 0,
+    expires: new Date(0),
   });
+  try {
+    jar.delete(SESSION_COOKIE_NAME);
+  } catch {
+    // Cookie was already cleared by maxAge: 0
+  }
 }
 
 export async function getSession(): Promise<SessionUser | null> {
@@ -40,6 +46,11 @@ export async function getSession(): Promise<SessionUser | null> {
 
   const payload = await verifySessionToken(token);
   if (!payload) {
+    try {
+      jar.delete(SESSION_COOKIE_NAME);
+    } catch {
+      // Cookies can only be modified in Server Actions or Route Handlers in Next.js
+    }
     return null;
   }
 

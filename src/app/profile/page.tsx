@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import prisma from "@/lib/prisma";
 import {
@@ -39,7 +40,7 @@ export default async function ProfilePage() {
   const session = await getSession();
 
   if (!session) {
-    return null;
+    redirect("/login?callbackUrl=/profile");
   }
 
   const user = await prisma.user.findUnique({
@@ -56,7 +57,7 @@ export default async function ProfilePage() {
   });
 
   if (!user) {
-    return null;
+    redirect("/login?callbackUrl=/profile");
   }
 
   const profile = user.profile;

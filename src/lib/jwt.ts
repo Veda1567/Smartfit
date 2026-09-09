@@ -35,15 +35,21 @@ export async function signSessionToken(payload: SessionPayload): Promise<string>
 }
 
 export async function verifySessionToken(
-  token: string
+  token: string | null | undefined
 ): Promise<SessionPayload | null> {
+  if (!token || typeof token !== "string") {
+    return null;
+  }
+
   const secret = getJwtSecret();
   if (!secret) {
     return null;
   }
 
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, {
+      algorithms: ["HS256"],
+    });
     const userId = typeof payload.userId === "string" ? payload.userId : null;
     const email = typeof payload.email === "string" ? payload.email : null;
     const username = typeof payload.username === "string" ? payload.username : null;

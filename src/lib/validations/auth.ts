@@ -46,6 +46,8 @@ export function validateRegisterInput(input: RegisterInput): {
     errors.password = "Password is required.";
   } else if (password.length < 8) {
     errors.password = "Password must be at least 8 characters.";
+  } else if (password.length > 128) {
+    errors.password = "Password must not exceed 128 characters.";
   } else if (!hasLetterAndNumber(password)) {
     errors.password = "Password must include at least one letter and one number.";
   }
@@ -69,13 +71,38 @@ export function validateLoginInput(input: LoginInput): {
 
   if (!identifier) {
     errors.identifier = "Email or username is required.";
+  } else if (identifier.length > 254) {
+    errors.identifier = "Email or username is too long.";
   }
 
   if (!password) {
     errors.password = "Password is required.";
+  } else if (password.length > 128) {
+    errors.password = "Password is too long.";
   }
 
   return { values: { identifier, password }, errors };
+}
+
+export function sanitizeCallbackUrl(
+  url: string | null | undefined,
+  defaultUrl: string = "/dashboard"
+): string {
+  if (!url || typeof url !== "string") {
+    return defaultUrl;
+  }
+  const trimmed = url.trim();
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    trimmed.startsWith("/\\") ||
+    trimmed.includes("\r") ||
+    trimmed.includes("\n") ||
+    trimmed.includes(":")
+  ) {
+    return defaultUrl;
+  }
+  return trimmed;
 }
 
 export function clientValidateRegister(input: RegisterInput): FieldErrors {
@@ -85,3 +112,4 @@ export function clientValidateRegister(input: RegisterInput): FieldErrors {
 export function clientValidateLogin(input: LoginInput): FieldErrors {
   return validateLoginInput(input).errors;
 }
+

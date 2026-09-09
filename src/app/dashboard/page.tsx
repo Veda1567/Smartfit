@@ -22,6 +22,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatCard } from "@/components/ui/stat-card";
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
   const session = await getSession();
 
   if (!session) {
-    return null;
+    redirect("/login?callbackUrl=/dashboard");
   }
 
   const user = await prisma.user.findUnique({
@@ -48,7 +49,7 @@ export default async function DashboardPage() {
   });
 
   if (!user) {
-    return null;
+    redirect("/login?callbackUrl=/dashboard");
   }
 
   const profile = user.profile;

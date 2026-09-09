@@ -106,14 +106,21 @@ export function Navbar({ session }: { session: SessionUser | null }) {
         <div className="flex items-center gap-2 sm:gap-3">
           {session ? (
             <>
-              <span className="hidden md:inline max-w-[9rem] truncate text-xs text-slate-400">
-                {session.username}
-              </span>
+              <Link href="/dashboard">
+                <Button
+                  variant={pathname === "/dashboard" ? "primary" : "ghost"}
+                  size="sm"
+                  className="flex items-center gap-1.5"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span className="hidden md:inline">Dashboard</span>
+                </Button>
+              </Link>
               <Link href="/profile">
                 <Button
                   variant={pathname === "/profile" ? "primary" : "secondary"}
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   <User className="h-4 w-4" />
                   <span className="hidden sm:inline">Profile</span>
@@ -124,7 +131,7 @@ export function Navbar({ session }: { session: SessionUser | null }) {
                   type="submit"
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Logout</span>
@@ -137,30 +144,20 @@ export function Navbar({ session }: { session: SessionUser | null }) {
                 <Button
                   variant={pathname === "/login" ? "primary" : "secondary"}
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   <LogIn className="h-4 w-4" />
-                  <span className="hidden sm:inline">Login</span>
+                  <span>Login</span>
                 </Button>
               </Link>
               <Link href="/register" className="hidden sm:block">
                 <Button
                   variant={pathname === "/register" ? "primary" : "outline"}
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1.5"
                 >
                   <UserPlus className="h-4 w-4" />
-                  Register
-                </Button>
-              </Link>
-              <Link href="/profile" className="hidden lg:block">
-                <Button
-                  variant={pathname === "/profile" ? "primary" : "ghost"}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  Profile
+                  <span>Register</span>
                 </Button>
               </Link>
             </>
@@ -207,17 +204,30 @@ export function Navbar({ session }: { session: SessionUser | null }) {
           </div>
           <div className="pt-3 flex flex-col gap-2 border-t border-slate-800">
             {session ? (
-              <div className="flex items-center justify-between gap-2">
-                <Link
-                  href="/profile"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 rounded-xl p-2.5 text-xs font-medium border border-slate-800 bg-slate-900/80 text-slate-300"
-                >
-                  <User className="h-4 w-4 text-brand-400" />
-                  {session.username}
-                </Link>
-                <form action={logoutAction}>
-                  <Button type="submit" variant="outline" size="sm">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between px-1 text-xs text-slate-400">
+                  <span>Signed in as <strong className="text-white">{session.username}</strong></span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 rounded-xl p-2.5 text-xs font-medium border border-slate-800 bg-slate-900/80 text-slate-300"
+                  >
+                    <Activity className="h-4 w-4 text-brand-400" />
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/profile"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-center gap-2 rounded-xl p-2.5 text-xs font-medium border border-slate-800 bg-slate-900/80 text-slate-300"
+                  >
+                    <User className="h-4 w-4 text-brand-400" />
+                    Profile
+                  </Link>
+                </div>
+                <form action={logoutAction} className="w-full">
+                  <Button type="submit" variant="outline" size="sm" className="w-full flex items-center justify-center gap-2">
                     <LogOut className="h-4 w-4" />
                     Logout
                   </Button>

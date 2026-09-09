@@ -1,15 +1,30 @@
 import React from "react";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Activity } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { RegisterForm } from "@/components/auth/register-form";
+import { getSession } from "@/lib/session";
+import { sanitizeCallbackUrl } from "@/lib/validations/auth";
 
 export const metadata: Metadata = {
   title: "Register | SmartFit",
   description: "Create a SmartFit account with username, email, and password.",
 };
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const session = await getSession();
+  if (session) {
+    redirect("/dashboard");
+  }
+
+  const params = await searchParams;
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl, "/dashboard");
+
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md border-slate-800 bg-slate-900/90">
@@ -23,9 +38,10 @@ export default function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <RegisterForm />
+          <RegisterForm callbackUrl={callbackUrl} />
         </CardContent>
       </Card>
     </div>
   );
 }
+

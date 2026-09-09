@@ -1,8 +1,11 @@
 import React from "react";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Activity } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { LoginForm } from "@/components/auth/login-form";
+import { getSession } from "@/lib/session";
+import { sanitizeCallbackUrl } from "@/lib/validations/auth";
 
 export const metadata: Metadata = {
   title: "Login | SmartFit",
@@ -12,13 +15,15 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registered?: string; callbackUrl?: string }>;
+  searchParams: Promise<{ registered?: string; callbackUrl?: string; loggedOut?: string }>;
 }) {
+  const session = await getSession();
+  if (session) {
+    redirect("/dashboard");
+  }
+
   const params = await searchParams;
-  const callbackUrl =
-    params.callbackUrl?.startsWith("/") && !params.callbackUrl.startsWith("//")
-      ? params.callbackUrl
-      : "/profile";
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl, "/dashboard");
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
@@ -35,6 +40,7 @@ export default async function LoginPage({
         <CardContent>
           <LoginForm
             registered={params.registered === "1"}
+            loggedOut={params.loggedOut === "1"}
             callbackUrl={callbackUrl}
           />
         </CardContent>

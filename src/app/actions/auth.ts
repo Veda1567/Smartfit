@@ -2,6 +2,7 @@
 
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { clearSession, createSession } from "@/lib/session";
@@ -9,6 +10,7 @@ import { isAuthSecretConfigured } from "@/lib/jwt";
 import {
   validateLoginInput,
   validateRegisterInput,
+  sanitizeCallbackUrl,
   type FieldErrors,
 } from "@/lib/validations/auth";
 
@@ -19,6 +21,8 @@ export type AuthActionState = {
 };
 
 const INVALID_CREDENTIALS = "Invalid email/username or password.";
+// Constant dummy bcrypt hash for timing attack mitigation when user is not found
+const DUMMY_HASH = "$2a$12$e80y7F1u0s7iF1kZ4x8aOuK3p12oR10B7m2o4r0h9q1w3e5r7t9y2";
 
 function looksLikeEmail(value: string): boolean {
   return value.includes("@");
@@ -29,9 +33,9 @@ export async function registerAction(
   formData: FormData
 ): Promise<AuthActionState> {
   if (!isAuthSecretConfigured()) {
+    console.error("registerAction: AUTH_SECRET is not configured.");
     return {
-      error:
-        "Authentication is not configured. Set AUTH_SECRET in your environment.",
+      error: "Authentication service is temporarily unavailable. Please try again later.",
     };
   }
 
@@ -47,6 +51,28 @@ export async function registerAction(
   }
 
   try {
+    // Proactive check for existing email or username (case-insensitive)
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: values.email, mode: "insensitive" } },
+          { username: { equals: values.username, mode: "insensitive" } },
+        ],
+      },
+      select: { email: true, username: true },
+    });
+
+    if (existingUser) {
+      const fieldErrors: FieldErrors = {};
+      if (existingUser.email.toLowerCase() === values.email.toLowerCase()) {
+        fieldErrors.email = "An account with this email already exists.";
+      }
+      if (existingUser.username.toLowerCase() === values.username.toLowerCase()) {
+        fieldErrors.username = "This username is already taken.";
+      }
+      return { fieldErrors };
+    }
+
     const passwordHash = await hashPassword(values.password);
 
     await prisma.user.create({
@@ -54,6 +80,33 @@ export async function registerAction(
         username: values.username,
         email: values.email,
         passwordHash,
+        gamification: {
+          create: {
+            totalXP: 0,
+            currentLevel: 1,
+            currentStreak: 0,
+            longestStreak: 0,
+            weeklyXP: 0,
+          },
+        },
+        waterPreference: {
+          create: {
+            dailyTargetMl: 2500,
+            reminderIntervalMinutes: 60,
+            enableAudio: true,
+          },
+        },
+        chessStats: {
+          create: {
+            eloRating: 1200,
+            puzzleRating: 1200,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            puzzlesSolved: 0,
+          },
+        },
       },
       select: { id: true },
     });
@@ -91,9 +144,9 @@ export async function loginAction(
   formData: FormData
 ): Promise<AuthActionState> {
   if (!isAuthSecretConfigured()) {
+    console.error("loginAction: AUTH_SECRET is not configured.");
     return {
-      error:
-        "Authentication is not configured. Set AUTH_SECRET in your environment.",
+      error: "Authentication service is temporarily unavailable. Please try again later.",
     };
   }
 
@@ -108,11 +161,11 @@ export async function loginAction(
 
   const identifier = values.identifier;
 
-  let user;
+  let user = null;
   try {
     user = await prisma.user.findFirst({
       where: looksLikeEmail(identifier)
-        ? { email: identifier.toLowerCase() }
+        ? { email: { equals: identifier.toLowerCase(), mode: "insensitive" } }
         : { username: { equals: identifier, mode: "insensitive" } },
       select: {
         id: true,
@@ -127,12 +180,12 @@ export async function loginAction(
     return { error: "Unable to sign in right now. Please try again." };
   }
 
-  if (!user) {
-    return { error: INVALID_CREDENTIALS };
-  }
+  // Always run password verification to prevent timing attack enumeration
+  const passwordMatches = user
+    ? await verifyPassword(values.password, user.passwordHash)
+    : await verifyPassword(values.password, DUMMY_HASH);
 
-  const passwordMatches = await verifyPassword(values.password, user.passwordHash);
-  if (!passwordMatches) {
+  if (!user || !passwordMatches) {
     return { error: INVALID_CREDENTIALS };
   }
 
@@ -145,19 +198,24 @@ export async function loginAction(
     });
   } catch (error) {
     console.error("Session creation failed:", error);
-    return { error: "Unable to start your session. Check AUTH_SECRET and try again." };
+    return { error: "Unable to start your session. Please try again." };
   }
 
-  const callbackUrl = String(formData.get("callbackUrl") ?? "").trim();
-  const safeRedirect =
-    callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
-      ? callbackUrl
-      : "/profile";
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+
+  const rawCallback = String(formData.get("callbackUrl") ?? "").trim();
+  const safeRedirect = sanitizeCallbackUrl(rawCallback, "/dashboard");
 
   redirect(safeRedirect);
 }
 
 export async function logoutAction(): Promise<void> {
   await clearSession();
-  redirect("/");
+  revalidatePath("/", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+  redirect("/login?loggedOut=1");
 }
+

@@ -11,7 +11,11 @@ import { Label } from "@/components/ui/label";
 
 const initialState: AuthActionState = {};
 
-export function RegisterForm() {
+export function RegisterForm({
+  callbackUrl = "/dashboard",
+}: {
+  callbackUrl?: string;
+} = {}) {
   const [state, formAction, pending] = useActionState(registerAction, initialState);
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
 
@@ -143,7 +147,11 @@ export function RegisterForm() {
       <p className="text-center text-sm text-slate-400">
         Already have an account?{" "}
         <Link
-          href="/login"
+          href={
+            callbackUrl && callbackUrl !== "/dashboard"
+              ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+              : "/login"
+          }
           className="font-semibold text-brand-400 hover:text-brand-300"
         >
           Sign in

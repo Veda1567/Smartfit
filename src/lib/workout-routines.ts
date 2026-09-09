@@ -557,3 +557,153 @@ export function getWorkoutRegimen(goal?: string | null): WorkoutRegimen {
   }
   return REGIMENS_DATA.maintenance;
 }
+
+export interface PersonalizedPlanParams {
+  age?: number | null;
+  gender?: string | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  bmi?: number | null;
+  bmiCategory?: string | null;
+  fitnessGoal?: string | null;
+  activityLevel?: string | null;
+}
+
+export interface PersonalizedWorkoutPlan extends WorkoutRegimen {
+  difficultyLevel: "Beginner Friendly" | "Intermediate Conditioning" | "Advanced Intensity";
+  intensityLabel: string;
+  lowImpactModifications: boolean;
+  safetyGuidelines: string[];
+  targetHeartRateZone: string;
+}
+
+/**
+ * Generates an individualized fitness plan adapting exercises, volume, rest periods,
+ * and impact safety based on user's age, BMI, activity level, and goal.
+ */
+export function generatePersonalizedWorkoutPlan(
+  params: PersonalizedPlanParams
+): PersonalizedWorkoutPlan {
+  const baseRegimen = getWorkoutRegimen(params.fitnessGoal);
+
+  // Safety threshold: Joint protection for higher BMI or specific weight classes
+  const isHighBmi =
+    params.bmiCategory === "obesity" ||
+    params.bmiCategory === "overweight" ||
+    (params.bmi !== undefined && params.bmi !== null && params.bmi >= 27.5);
+
+  const isSenior = params.age !== undefined && params.age !== null && params.age >= 55;
+  const isSedentary = params.activityLevel === "sedentary" || !params.activityLevel;
+  const isVeryActive = params.activityLevel === "very_active";
+
+  // Determine difficulty level
+  let difficultyLevel: "Beginner Friendly" | "Intermediate Conditioning" | "Advanced Intensity" =
+    "Intermediate Conditioning";
+  let intensityLabel = "Moderate Aerobic & Muscle Conditioning (RPE 6–7)";
+
+  if (isSedentary || isSenior) {
+    difficultyLevel = "Beginner Friendly";
+    intensityLabel = "Gentle Foundation & Low-Stress Movement (RPE 4–5)";
+  } else if (isVeryActive && !isHighBmi && (!params.age || params.age < 50)) {
+    difficultyLevel = "Advanced Intensity";
+    intensityLabel = "High-Density Progressive Conditioning (RPE 7–8.5)";
+  }
+
+  // Safety guidelines
+  const safetyGuidelines: string[] = [
+    "Warm up thoroughly with 2–3 minutes of arm circles, torso twists, and ankle rotations before starting.",
+    "Rest between sets: allow your breathing and heart rate to return to a calm rhythm before proceeding.",
+    "Listen to your body: Discontinue any exercise immediately if you feel acute joint pain, dizziness, or lightheadedness.",
+    "Stay hydrated with small sips of water during rest intervals.",
+  ];
+
+  if (isHighBmi) {
+    safetyGuidelines.unshift(
+      "Joint Protection Active: High-impact plyometric jumping has been replaced with low-impact step variations to protect knees, hips, and lower back."
+    );
+  }
+
+  if (isSenior) {
+    safetyGuidelines.push(
+      "Perform repetitions with smooth, controlled cadence (2 seconds down, 1 second pause, 2 seconds up) to protect connective tendons."
+    );
+  }
+
+  // Calculate estimated target heart rate zone (220 - age)
+  const age = params.age && params.age > 0 ? params.age : 30;
+  const maxHr = 220 - age;
+  let targetHeartRateZone = `${Math.round(maxHr * 0.6)}–${Math.round(maxHr * 0.75)} BPM (Zone 2–3)`;
+  if (difficultyLevel === "Beginner Friendly") {
+    targetHeartRateZone = `${Math.round(maxHr * 0.5)}–${Math.round(maxHr * 0.65)} BPM (Zone 1–2)`;
+  } else if (difficultyLevel === "Advanced Intensity") {
+    targetHeartRateZone = `${Math.round(maxHr * 0.7)}–${Math.round(maxHr * 0.85)} BPM (Zone 3–4)`;
+  }
+
+  // Clone routines and apply personalized adaptations
+  const adaptedRoutines: WorkoutDayRoutine[] = baseRegimen.routines.map((routine) => {
+    const adaptedExercises: ExerciseDetail[] = routine.exercises.map((ex) => {
+      let exerciseName = ex.name;
+      let instructions = ex.instructions;
+      let sets = ex.sets;
+      let restSec = ex.restSec;
+
+      // 1. Joint-friendly substitutions for high-impact movements
+      if (isHighBmi) {
+        if (exerciseName.includes("Jumping Jacks")) {
+          exerciseName = "Low-Impact Step Jacks";
+          instructions = "Step one foot out to the side while raising arms overhead. Alternate feet rhythmically without jumping.";
+        } else if (exerciseName.includes("Burpees")) {
+          exerciseName = "Elevated Mountain Climbers or Wall Push-ups";
+          instructions = "Place hands on an elevated bench or wall. Step knees to chest smoothly without floor impact.";
+        } else if (exerciseName.includes("High Knees")) {
+          exerciseName = "Controlled March in Place";
+          instructions = "March with purpose, driving knees to hip height while pumping arms, absorbing landing softly on midfoot.";
+        } else if (exerciseName.includes("Speed Skaters")) {
+          exerciseName = "Side Step Curtsies (No Jump)";
+          instructions = "Step laterally and lightly tap the back foot without ballistic hopping.";
+        }
+      }
+
+      // 2. Adjust volume and rest based on activity level
+      if (isSedentary) {
+        sets = Math.max(2, ex.sets - 1);
+        restSec = ex.restSec + 15;
+      } else if (isVeryActive) {
+        sets = Math.min(4, ex.sets + 1);
+        restSec = Math.max(25, ex.restSec - 5);
+      }
+
+      if (isSenior) {
+        restSec = Math.max(restSec, 50);
+      }
+
+      return {
+        ...ex,
+        name: exerciseName,
+        instructions,
+        sets,
+        restSec,
+      };
+    });
+
+    // Recalculate duration based on sets and rest adjustments
+    const setMultiplier = isSedentary ? 0.85 : isVeryActive ? 1.15 : 1.0;
+    const estimatedDurationMin = Math.round(routine.estimatedDurationMin * setMultiplier);
+
+    return {
+      ...routine,
+      estimatedDurationMin,
+      exercises: adaptedExercises,
+    };
+  });
+
+  return {
+    ...baseRegimen,
+    difficultyLevel,
+    intensityLabel,
+    lowImpactModifications: isHighBmi,
+    safetyGuidelines,
+    targetHeartRateZone,
+    routines: adaptedRoutines,
+  };
+}

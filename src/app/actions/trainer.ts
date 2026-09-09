@@ -133,7 +133,7 @@ export async function updateTrainerGuidanceAction(
 }
 
 /**
- * Server action to log a completed workout session with XP award.
+ * Server action to log a completed workout session with server-side XP award and duplicate prevention.
  */
 export async function logWorkoutSessionAction(data: {
   routineTitle: string;
@@ -156,51 +156,108 @@ export async function logWorkoutSessionAction(data: {
     };
   }
 
-  if (!data.routineTitle || data.durationMinutes <= 0) {
+  const routineTitle = (data.routineTitle || "").trim().slice(0, 120);
+  const durationMinutes = Math.max(1, Math.min(360, Math.round(Number(data.durationMinutes) || 0)));
+  const estimatedCalories = Math.max(
+    10,
+    Math.min(3000, Math.round(Number(data.estimatedCaloriesBurned) || 200))
+  );
+  const notes = data.notes ? data.notes.trim().slice(0, 500) : undefined;
+
+  if (routineTitle.length < 2) {
     return {
       success: false,
-      error: "Please provide valid workout session details.",
+      error: "Please provide a valid workout routine title.",
+    };
+  }
+
+  if (durationMinutes <= 0) {
+    return {
+      success: false,
+      error: "Please specify a valid workout duration in minutes.",
     };
   }
 
   try {
-    await prisma.workoutSession.create({
-      data: {
+    const now = new Date();
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // 1. Check for rapid repeated submissions within 2 minutes (prevent accidental double clicking)
+    const recentDuplicate = await prisma.workoutSession.findFirst({
+      where: {
         userId: session.id,
-        routineTitle: data.routineTitle,
-        durationMinutes: data.durationMinutes,
-        estimatedCaloriesBurned: data.estimatedCaloriesBurned ?? 200,
-        notes: data.notes,
-        completedAt: new Date(),
+        completedAt: { gte: twoMinutesAgo },
       },
     });
 
-    // Award standard +100 XP for completed workout
-    const xpResult = await awardUserXP(session.id, 100, "workout_session");
+    if (recentDuplicate) {
+      return {
+        success: false,
+        error: "A workout session was recorded just a moment ago. Please allow a brief cooldown.",
+      };
+    }
 
-    // Check for First Step Forward achievement
-    const unlockedAchievement = await checkAndAwardWorkoutAchievements(session.id);
+    // 2. Check if this routine was already completed today by this user
+    const alreadyCompletedToday = await prisma.workoutSession.findFirst({
+      where: {
+        userId: session.id,
+        routineTitle,
+        completedAt: { gte: startOfToday },
+      },
+    });
+
+    // 3. Persist the workout session
+    await prisma.workoutSession.create({
+      data: {
+        userId: session.id,
+        routineTitle,
+        durationMinutes,
+        estimatedCaloriesBurned: estimatedCalories,
+        notes,
+        completedAt: now,
+      },
+    });
+
+    let xpEarned = 0;
+    let unlockedAchievement: string | null = null;
+    let message: string;
+
+    if (alreadyCompletedToday) {
+      // Session logged for training history, but no duplicate XP awarded
+      message = `Workout session saved to your fitness history! (Daily XP for "${routineTitle}" was already claimed earlier today).`;
+    } else {
+      // First completion today: Award standard +100 XP
+      await awardUserXP(session.id, 100, "workout_session");
+      xpEarned = 100;
+
+      // Check for first workout achievement
+      unlockedAchievement = await checkAndAwardWorkoutAchievements(session.id);
+      if (unlockedAchievement) {
+        xpEarned += 50;
+      }
+
+      message = unlockedAchievement
+        ? `Workout completed! +100 XP awarded 🔥 Achievement Unlocked: ${unlockedAchievement} (+50 XP)!`
+        : `Workout completed! +100 XP awarded 🔥 Keep up the momentum!`;
+    }
 
     revalidatePath("/trainer");
     revalidatePath("/fitness");
     revalidatePath("/dashboard");
     revalidatePath("/profile");
 
-    const message = unlockedAchievement
-      ? `Workout session recorded! +100 XP awarded 🔥 Achievement Unlocked: ${unlockedAchievement} (+50 XP)!`
-      : "Workout session recorded! +100 XP awarded 🔥";
-
     return {
       success: true,
       message,
-      xpEarned: 100 + (unlockedAchievement ? 50 : 0),
+      xpEarned,
       unlockedAchievement,
     };
   } catch (error) {
     console.error("Failed to log workout session:", error);
     return {
       success: false,
-      error: "Failed to save workout session.",
+      error: "Failed to save workout session to database.",
     };
   }
 }

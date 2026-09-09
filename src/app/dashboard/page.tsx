@@ -12,6 +12,7 @@ import {
   Trophy,
   Target,
   ChevronRight,
+  Bot,
 } from "lucide-react";
 
 import {
@@ -300,6 +301,28 @@ export default async function DashboardPage({
           </CardHeader>
 
           <CardContent className="space-y-3">
+            <Link href="/coach">
+              <div className="flex items-center justify-between rounded-xl border border-brand-500/30 bg-brand-500/5 p-4 hover:bg-brand-500/10 transition">
+                <div className="flex items-center gap-3">
+                  <Bot className="h-5 w-5 text-brand-400" />
+
+                  <div>
+                    <div className="font-semibold text-white flex items-center gap-2">
+                      <span>Daily AI Coach Brief &amp; Q&amp;A</span>
+                      <span className="text-[10px] bg-brand-500/20 text-brand-400 font-bold px-1.5 py-0.5 rounded border border-brand-500/30">
+                        +15 XP
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-400">
+                      Personalized daily analysis &amp; guidance
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight className="h-4 w-4 text-brand-400" />
+              </div>
+            </Link>
 
             <Link href="/fitness">
               <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-800/40 p-4 hover:bg-slate-800/70 transition">
@@ -575,7 +598,13 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2.5">
+          <Link href="/coach">
+            <Button variant="secondary" className="w-full text-xs py-2 border-brand-500/30 text-brand-400 hover:bg-brand-500/10">
+              AI Coach
+            </Button>
+          </Link>
+
           <Link href="/trainer">
             <Button variant="secondary" className="w-full text-xs py-2">
               Trainer

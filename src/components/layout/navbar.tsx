@@ -17,6 +17,7 @@ import {
   LogIn,
   UserPlus,
   LogOut,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ export function Navbar({ session }: { session: SessionUser | null }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
+    { href: "/coach", label: "AI Coach", icon: Bot },
     { href: "/trainer", label: "Trainer", icon: HeartPulse },
     { href: "/fitness", label: "Fitness", icon: Dumbbell },
     { href: "/wellness", label: "Wellness", icon: Sparkles },
@@ -61,7 +63,28 @@ export function Navbar({ session }: { session: SessionUser | null }) {
         </Link>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-1 text-sm font-medium text-slate-300">
+        <nav className="hidden xl:flex items-center gap-1 text-xs xl:text-sm font-medium text-slate-300">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+                  isActive
+                    ? "bg-slate-900 text-brand-400 font-semibold border border-slate-800"
+                    : "hover:text-white hover:bg-slate-900/60"
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+        {/* Condensed view for lg screens */}
+        <nav className="hidden lg:flex xl:hidden items-center gap-0.5 text-xs font-medium text-slate-300">
           {navLinks.slice(0, 7).map((link) => {
             const isActive = pathname === link.href;
             const Icon = link.icon;
@@ -69,36 +92,36 @@ export function Navbar({ session }: { session: SessionUser | null }) {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+                className={`flex items-center gap-1 px-1.5 py-1 rounded-lg transition-colors ${
                   isActive
                     ? "bg-slate-900 text-brand-400 font-semibold border border-slate-800"
                     : "hover:text-white hover:bg-slate-900/60"
                 }`}
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5 shrink-0" />
                 {link.label}
               </Link>
             );
           })}
           <Link
             href="/challenges"
-            className={`px-3 py-1.5 rounded-lg transition-colors ${
+            className={`px-1.5 py-1 rounded-lg transition-colors ${
               pathname === "/challenges"
                 ? "bg-slate-900 text-brand-400 font-semibold"
                 : "hover:text-white hover:bg-slate-900/60"
             }`}
           >
-            Challenges
+            Quests
           </Link>
           <Link
             href="/leaderboard"
-            className={`px-3 py-1.5 rounded-lg transition-colors ${
+            className={`px-1.5 py-1 rounded-lg transition-colors ${
               pathname === "/leaderboard"
                 ? "bg-slate-900 text-brand-400 font-semibold"
                 : "hover:text-white hover:bg-slate-900/60"
             }`}
           >
-            Rankings
+            Rank
           </Link>
         </nav>
 
@@ -256,7 +279,7 @@ export function Navbar({ session }: { session: SessionUser | null }) {
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Product: SmartFit Platform</span>
               <Badge variant="brand" className="text-[10px]">
-                Phase 4 Design Shell
+                Phase 10 Production Ready
               </Badge>
             </div>
           </div>

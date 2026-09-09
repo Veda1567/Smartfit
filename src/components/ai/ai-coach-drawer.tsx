@@ -14,6 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+import Link from "next/link";
+import { sendCoachMessageAction } from "@/app/actions/coach";
+
 interface Message {
   id: string;
   sender: "user" | "assistant";
@@ -26,31 +29,31 @@ export function AICoachDrawer() {
   const [inputVal, setInputVal] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Realistic sample messages for visual shell demonstration
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       sender: "assistant",
-      text: "Hello! I am your SmartFit AI Wellness Coach. I can provide general workout routine suggestions, mindful eating tips, or chess tactical ideas. How can I support your fitness and mental wellness journey today?",
+      text: "Hello! I am your SmartFit AI Wellness Coach. I synthesize your fitness goals, workouts, and wellness reflections to give you actionable guidance. How can I help you today?",
       timestamp: "Just now",
     },
   ]);
 
   const promptSuggestions = [
-    "Suggest a 20-min beginner core workout",
-    "Healthy pre-workout snack suggestions",
-    "How does box breathing reduce stress?",
+    "Today's recommended workout",
+    "Healthy pre-workout snacks",
+    "How does box breathing help stress?",
     "Tips for chess opening principles",
   ];
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputVal.trim()) return;
+    if (!inputVal.trim() || isLoading) return;
 
+    const userText = inputVal.trim();
     const userMsg: Message = {
       id: Date.now().toString(),
       sender: "user",
-      text: inputVal,
+      text: userText,
       timestamp: "Just now",
     };
 
@@ -58,17 +61,42 @@ export function AICoachDrawer() {
     setInputVal("");
     setIsLoading(true);
 
-    // Visual shell simulation only (NO real API call)
-    setTimeout(() => {
-      const mockReply: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: "assistant",
-        text: "This is a simulated preview of the SmartFit AI Wellness Coach. In Phase 17, this assistant will be integrated with Google Gemini to generate dynamic, personalized wellness guidance based on your profile and metrics!",
-        timestamp: "Just now",
-      };
-      setMessages((prev) => [...prev, mockReply]);
+    try {
+      const res = await sendCoachMessageAction(null, userText);
+      if (res.success && res.assistantMessage) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: res.assistantMessage!.id,
+            sender: "assistant",
+            text: res.assistantMessage!.content,
+            timestamp: "Just now",
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: "assistant",
+            text: res.error || "Please log in to receive personalized wellness guidance.",
+            timestamp: "Just now",
+          },
+        ]);
+      }
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          sender: "assistant",
+          text: "Communication error contacting the coach.",
+          timestamp: "Just now",
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 1200);
+    }
   };
 
   const handleSuggestionClick = (prompt: string) => {
@@ -107,8 +135,8 @@ export function AICoachDrawer() {
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                   SmartFit AI Coach
-                  <Badge variant="brand" className="text-[10px] py-0 px-1.5">
-                    Preview Shell
+                  <Badge variant="brand" className="text-[10px] py-0 px-1.5 bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                    Live
                   </Badge>
                 </h3>
                 <p className="text-[11px] text-slate-400">
@@ -116,13 +144,23 @@ export function AICoachDrawer() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
-              aria-label="Close Chat"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <Link
+                href="/coach"
+                onClick={() => setIsOpen(false)}
+                className="text-[11px] font-semibold text-brand-400 hover:text-brand-300 hover:underline px-2 py-1 rounded-md bg-slate-800/80 transition-colors"
+                title="Open Dedicated Coach Studio"
+              >
+                Full Studio ↗
+              </Link>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
+                aria-label="Close Chat"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Health Disclaimer Strip */}

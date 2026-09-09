@@ -16,6 +16,7 @@ import {
   Loader2,
   Check,
   LogIn,
+  Bot,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -189,6 +190,31 @@ export function TrainerInteractive({
         title="Personal Fitness Trainer"
         description="Configure your biometric profile to view personalized body screening metrics, general caloric estimates, and customized workout regimens."
       />
+
+      {/* AI Coach Studio Banner */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-brand-500/20 bg-slate-900/60 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-cyan-500 text-slate-950 font-bold shrink-0">
+            <Bot className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+              <span>SmartFit AI Wellness Coach</span>
+              <Badge variant="brand" className="text-[10px] py-0 px-1.5 bg-brand-500/20 text-brand-400">
+                Live Studio
+              </Badge>
+            </h4>
+            <p className="text-xs text-slate-400">
+              Get an automated daily synthesis combining your workout logs, hydration, mood check-ins, and chess puzzles.
+            </p>
+          </div>
+        </div>
+        <Link href="/coach">
+          <Button size="sm" variant="outline" className="border-brand-500/40 text-brand-400 hover:bg-brand-500/10 whitespace-nowrap">
+            Open AI Coach ↗
+          </Button>
+        </Link>
+      </div>
 
       {/* Guest Banner if not logged in */}
       {!session && (

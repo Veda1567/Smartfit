@@ -32,6 +32,7 @@ import {
   Clock,
   ChevronRight,
   Info,
+  Camera,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -48,6 +49,8 @@ import {
 } from "@/lib/workout-routines";
 import { getFoodGuidance, type GoalFoodGuidance } from "@/lib/food-guidance";
 import type { SessionUser } from "@/lib/auth-constants";
+import { CameraFormCoach } from "./camera-form-coach";
+
 
 export interface FitnessInitialData {
   profile: {
@@ -104,7 +107,7 @@ export function FitnessInteractive({
   initialData,
 }: FitnessInteractiveProps) {
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState<"workout" | "timer" | "nutrition" | "progress">("workout");
+  const [activeTab, setActiveTab] = useState<"workout" | "camera" | "timer" | "nutrition" | "progress">("workout");
 
   // Hydration state
   const [waterMl, setWaterMl] = useState(initialData.todayWaterMl);
@@ -615,6 +618,21 @@ export function FitnessInteractive({
         </button>
 
         <button
+          onClick={() => setActiveTab("camera")}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "camera"
+              ? "border-brand-500 text-brand-400 bg-brand-500/5 rounded-t-xl"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <Camera className="h-4 w-4 text-cyan-400" />
+          <span>AI Camera Form Coach</span>
+          <Badge variant="brand" className="text-[10px] py-0 px-1.5 ml-1">
+            Vision
+          </Badge>
+        </button>
+
+        <button
           onClick={() => setActiveTab("timer")}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "timer"
@@ -809,6 +827,19 @@ export function FitnessInteractive({
                               {ex.instructions}
                             </p>
 
+                            {(ex.name.toLowerCase().includes("squat") ||
+                              ex.name.toLowerCase().includes("push") ||
+                              ex.name.toLowerCase().includes("curl")) && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab("camera")}
+                                className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors pt-1"
+                              >
+                                <Camera className="h-3.5 w-3.5 text-cyan-400" />
+                                <span>Track with AI Camera Form Coach &rarr;</span>
+                              </button>
+                            )}
+
                             {/* Reps/Duration Tracking Notes during active workout */}
                             {isWorkoutActive && (
                               <div className="pt-2 flex items-center gap-3 text-xs">
@@ -974,6 +1005,24 @@ export function FitnessInteractive({
             </Card>
           </div>
         </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TAB: AI CAMERA FORM COACH                                             */}
+      {/* ===================================================================== */}
+      {activeTab === "camera" && (
+        <CameraFormCoach
+          session={session}
+          userWeightKg={initialData.profile?.weightKg ?? 70}
+          onSessionLogged={(newSession) => {
+            setLastWorkoutTitle(newSession.routineTitle);
+            if (newSession.estimatedCaloriesBurned) {
+              setTodayCalories((prev) => prev + Math.round(newSession.estimatedCaloriesBurned!));
+            }
+            setWeeklyWorkouts((prev) => prev + 1);
+            setRecentSessions((prev) => [newSession, ...prev.slice(0, 7)]);
+          }}
+        />
       )}
 
       {/* ===================================================================== */}

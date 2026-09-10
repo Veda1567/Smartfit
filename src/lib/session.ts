@@ -38,26 +38,31 @@ export async function clearSession(): Promise<void> {
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const jar = await cookies();
-  const token = jar.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return null;
-  }
-
-  const payload = await verifySessionToken(token);
-  if (!payload) {
-    try {
-      jar.delete(SESSION_COOKIE_NAME);
-    } catch {
-      // Cookies can only be modified in Server Actions or Route Handlers in Next.js
+  try {
+    const jar = await cookies();
+    const token = jar.get(SESSION_COOKIE_NAME)?.value;
+    if (!token) {
+      return null;
     }
+
+    const payload = await verifySessionToken(token);
+    if (!payload) {
+      try {
+        jar.delete(SESSION_COOKIE_NAME);
+      } catch {
+        // Cookies can only be modified in Server Actions or Route Handlers in Next.js
+      }
+      return null;
+    }
+
+    return {
+      id: payload.userId,
+      email: payload.email,
+      username: payload.username,
+      role: payload.role,
+    };
+  } catch {
+    // If called outside an active request context (e.g. CLI test runners, static generation), safely return null
     return null;
   }
-
-  return {
-    id: payload.userId,
-    email: payload.email,
-    username: payload.username,
-    role: payload.role,
-  };
 }

@@ -1,6 +1,19 @@
 import prisma from "@/lib/prisma";
 import { generateFitnessGuidance } from "@/lib/validations/profile";
 import { getLevelProgress, getEffectiveStreak } from "@/lib/gamification";
+import {
+  matchGeneralKnowledge,
+  isExplicitProfileSummaryRequest,
+  isOutOfDomainQuery,
+  generateOutOfDomainResponse,
+} from "./coach-knowledge";
+
+export {
+  matchGeneralKnowledge,
+  isExplicitProfileSummaryRequest,
+  isOutOfDomainQuery,
+  generateOutOfDomainResponse,
+} from "./coach-knowledge";
 
 export interface CoachUserContext {
   userId: string;
@@ -256,7 +269,9 @@ export async function generateSmartCoachResponse(
 ): Promise<string> {
   const query = userMessage.toLowerCase().trim();
 
-  // 1. SAFETY & MEDICAL FILTER
+  // =========================================================================
+  // PRIORITY 1 — SAFETY & CLINICAL INTERCEPT
+  // =========================================================================
   const redFlags = [
     "chest pain", "heart attack", "shortness of breath", "severe injury",
     "fracture", "prescribe", "medication", "cure cancer", "suicide", "diagnose disease",
@@ -271,14 +286,61 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 2. WORKOUT & FITNESS INQUIRIES
+  // =========================================================================
+  // PRIORITY 2 — DIRECT GENERAL KNOWLEDGE ANSWERS
+  // (BMI vs body fat, progressive overload, sleep importance, BMR, TDEE, etc.)
+  // Evaluated BEFORE generic keyword matching so questions like "Does BMI is correct
+  // measure to know fat levels in human body?" receive direct educational answers.
+  // =========================================================================
+  const generalKnowledge = matchGeneralKnowledge(query);
+  if (generalKnowledge) {
+    // If it's a general water intake inquiry and user has a profile with a water target, append a helpful personalized note!
+    if (generalKnowledge.topic === "Daily Water Intake" && ctx.waterTargetMl) {
+      return (
+        `${generalKnowledge.answer}\n\n` +
+        `💡 *Based on your calibrated SmartFit profile, your personal daily target is **${ctx.waterTargetMl.toLocaleString()} ml** (currently **${ctx.todayWaterMl} ml** logged today).*`
+      );
+    }
+    return generalKnowledge.answer;
+  }
+
+  // =========================================================================
+  // PRIORITY 3 — PERSONALIZED INQUIRIES (Using Profile Context When Relevant)
+  // =========================================================================
+
+  // 3.1 Personalized BMI inquiries (e.g. "My BMI is 29. What does it mean?", "What does my BMI mean?")
+  if (
+    /\bmy bmi\b/i.test(query) ||
+    /\bwhat does my bmi mean\b/i.test(query) ||
+    /\binterpret my bmi\b/i.test(query) ||
+    /\bbased on my bmi\b/i.test(query)
+  ) {
+    const userBmi = ctx.bmi ? ctx.bmi.toFixed(1) : "N/A";
+    const userCat = ctx.bmiCategory ? ctx.bmiCategory.replace(/_/g, " ") : "Normal";
+    const weight = ctx.weightKg ? `${ctx.weightKg} kg` : "N/A";
+    const height = ctx.heightCm ? `${ctx.heightCm} cm` : "N/A";
+
+    return (
+      `⚖️ **Personalized BMI Interpretation for ${ctx.username}**:\n\n` +
+      `• **Your Screening BMI**: **${userBmi}** (${userCat.toUpperCase()}) based on ${height} and ${weight}.\n` +
+      `• **What This Means**:\n` +
+      `  - BMI is a statistical screening ratio of weight to height, **not** an exact measurement of body fat.\n` +
+      `  - If you engage in resistance training, your higher muscle mass may place you in an elevated category without excess fat.\n` +
+      `  - If you are seeking healthy weight management, combine progressive functional movement with whole-food caloric balance.\n` +
+      `• **Tailored Recommendation**: Focus on waist-to-height ratio, strength progression, and consistent hydration (${ctx.todayWaterMl}/${ctx.waterTargetMl} ml today) rather than fixating on the scale alone.`
+    );
+  }
+
+  // 3.2 Personalized Workout & Training Routine Inquiries
+  // (e.g. "What exercises should I do today for muscle hypertrophy?", "What workout should I do?", "Suggest a workout routine")
   if (
     query.includes("workout") ||
     query.includes("exercise") ||
     query.includes("routine") ||
     query.includes("training") ||
     query.includes("sets") ||
-    query.includes("reps")
+    query.includes("reps") ||
+    query.includes("hypertrophy")
   ) {
     const goalText = ctx.fitnessGoal ? ctx.fitnessGoal.replace(/_/g, " ") : "general health";
     const bmiSafeNote = (ctx.bmi && ctx.bmi >= 28)
@@ -295,7 +357,8 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 3. DIET, FOOD, CALORIES & NUTRITION INQUIRIES
+  // 3.3 Personalized Nutrition & Calorie Inquiries
+  // (e.g. "How many calories should I eat and how is my water intake?", "What should I eat today?")
   if (
     query.includes("diet") ||
     query.includes("food") ||
@@ -317,7 +380,7 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 4. HYDRATION INQUIRIES
+  // 3.4 Personalized Hydration Status
   if (query.includes("water") || query.includes("hydrat") || query.includes("drink")) {
     const remaining = Math.max(0, ctx.waterTargetMl - ctx.todayWaterMl);
     return (
@@ -329,7 +392,7 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 5. STRESS, SLEEP, RELAXATION, MEDITATION & MUDRAS
+  // 3.5 Personalized Stress, Sleep & Mental Wellness
   if (
     query.includes("stress") ||
     query.includes("anxious") ||
@@ -350,7 +413,7 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 6. CHESS, COGNITIVE FITNESS & BRAIN AGILITY
+  // 3.6 Personalized Chess & Cognitive Training
   if (query.includes("chess") || query.includes("brain") || query.includes("cognitive") || query.includes("puzzle")) {
     return (
       `♟️ **Cognitive Fitness & Tactical Planning**:\n\n` +
@@ -361,15 +424,11 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 7. PROGRESS, LEVEL, STREAK & SUMMARY
-  if (
-    query.includes("progress") ||
-    query.includes("level") ||
-    query.includes("streak") ||
-    query.includes("summary") ||
-    query.includes("score") ||
-    query.includes("xp")
-  ) {
+  // =========================================================================
+  // PRIORITY 4 — EXPLICIT PROFILE & JOURNEY SUMMARY REQUEST
+  // (Only when explicitly asked for summary/profile/journey/streak stats)
+  // =========================================================================
+  if (isExplicitProfileSummaryRequest(query)) {
     return (
       `🏆 **SmartFit Profile & Journey Summary for ${ctx.username}**:\n\n` +
       `• **Level**: Level ${ctx.currentLevel} (${ctx.totalXP.toLocaleString()} Lifetime XP)\n` +
@@ -381,12 +440,20 @@ export async function generateSmartCoachResponse(
     );
   }
 
-  // 8. DEFAULT HOLISTIC COACHING RESPONSE
+  // =========================================================================
+  // PRIORITY 5 — OUT-OF-DOMAIN QUESTIONS
+  // =========================================================================
+  if (isOutOfDomainQuery(query)) {
+    return generateOutOfDomainResponse();
+  }
+
+  // =========================================================================
+  // DEFAULT RECEPTIVE COACHING GUIDANCE
+  // =========================================================================
   return (
-    `Hello ${ctx.username}! As your SmartFit AI Coach, I examine your physical activity, wellness reflection, and cognitive milestones to keep you aligned.\n\n` +
-    `• **Your Goal**: ${ctx.fitnessGoal ? ctx.fitnessGoal.replace(/_/g, " ").toUpperCase() : "General Vitality"}\n` +
-    `• **Current Level & Streak**: Level ${ctx.currentLevel} • ${ctx.currentStreak}-day active streak\n` +
-    `• **Today's Priority**: ${!ctx.todayWorkoutDone ? "Complete your tailored workout in the Fitness module (+100 XP)." : !ctx.todayWellnessDone ? "Take 1 minute for a mindful check-in on /wellness (+25 XP)." : "Maintain hydration and try a 5-minute tactical chess puzzle!"}\n\n` +
-    `Feel free to ask me for workout routines, pre/post-workout snacks, stress-reduction breathwork, or chess opening fundamentals!`
+    `Hello ${ctx.username}! As your SmartFit AI Coach, I'm here to support your fitness, nutrition, recovery, and cognitive goals.\n\n` +
+    `• **Your Current Goal**: ${ctx.fitnessGoal ? ctx.fitnessGoal.replace(/_/g, " ").toUpperCase() : "General Vitality"}\n` +
+    `• **Today's Action Focus**: ${!ctx.todayWorkoutDone ? "Try tracking a workout on the /fitness page (+100 XP) or checking your squat form with the AI Camera Coach." : !ctx.todayWellnessDone ? "Take 2 minutes for a mindful check-in or box breathing on /wellness (+25 XP)." : "Great job hitting your targets today! Stay hydrated and try a tactical chess puzzle."}\n\n` +
+    `Feel free to ask me anything about exercise science (e.g. *"What is progressive overload?"*), body metrics (*"Does BMI measure body fat?"*), nutrition, hydration, or stress-relief breathwork!`
   );
 }
